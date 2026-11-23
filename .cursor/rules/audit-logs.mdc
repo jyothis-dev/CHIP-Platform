@@ -1,0 +1,33 @@
+---
+description: Audit every API request and every domain activity
+alwaysApply: true
+---
+
+# Audit logs
+
+Record two kinds of events through one audit helper. Do not scatter `console.log` for audit history.
+
+**API access.** Middleware on every request logs `requestId`, method, path, status, actor id (or anonymous), IP, and duration. Skip only `/health`.
+
+**Activity.** After a successful state change, write one record: `actorId`, `action`, `entityType`, `entityId`, `outcome`, `requestId`, `createdAt`. Cover hospital onboarding, departments, roles, login and token refresh, child registration, guardian association, and vaccination create or update.
+
+- Call `audit.log()` from the service after the write commits. Do not audit inside the UI.
+- Store structured fields, not free-text dumps of `req.body`.
+- Never store passwords, access tokens, refresh tokens, or raw secrets.
+- Redact clinical identifiers in the summary. Keep the entity id so the record can still be traced.
+- Failed auth and denied permission checks are activities too (`outcome: 'denied'`).
+
+```js
+// ❌ BAD
+console.log('user created child', req.body);
+
+// ✅ GOOD
+await audit.log({
+  actorId: req.user.id,
+  action: 'child.registered',
+  entityType: 'child',
+  entityId: child.id,
+  outcome: 'success',
+  requestId: req.id,
+});
+```

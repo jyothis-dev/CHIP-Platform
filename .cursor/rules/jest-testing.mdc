@@ -1,0 +1,33 @@
+---
+description: Cover server behavior with Jest test cases
+alwaysApply: true
+---
+
+# Jest tests
+
+Test server behavior with Jest. A route or service is not done until it has test cases.
+
+- Put tests in `server` as `*.test.js`, next to the module or under `__tests__/`.
+- Run them with `npm test` (`node --experimental-vm-modules node_modules/jest/bin/jest.js`).
+- Each feature needs cases for the success path, invalid input, auth or permission denial, and the centralized error code (`404`, `409`, and so on).
+- Call the real function or the Express app. Mock only the database, clock, and outbound messages.
+- Use a test database or mocks. Never point tests at production.
+- Assert status, `code`, and the fields that matter. Do not assert full objects that include secrets or tokens.
+
+```js
+// ❌ BAD — no assertion
+it('registers a child', async () => {
+  await request(app).post('/children').send({ name: 'Asha' });
+});
+
+// ✅ GOOD
+it('returns 409 when the vaccination already exists', async () => {
+  const res = await request(app)
+    .post('/children/1/vaccinations')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ vaccineCode: 'BCG', dose: 1 });
+
+  expect(res.status).toBe(409);
+  expect(res.body.code).toBe('VACCINATION_DUPLICATE');
+});
+```

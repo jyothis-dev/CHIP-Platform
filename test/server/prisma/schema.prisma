@@ -1,0 +1,235 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Hospital {
+  id            String         @id @default(uuid())
+  name          String
+  code          String         @unique
+  address       String?
+  city          String?
+  phone         String?
+  status        String         @default("active")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  departments   Department[]
+  roles         Role[]
+  memberships   Membership[]
+  children      Child[]
+  refreshTokens RefreshToken[]
+  auditLogs     AuditLog[]
+
+  @@map("hospitals")
+}
+
+model Permission {
+  id          String           @id @default(uuid())
+  key         String           @unique
+  description String?
+  roles       RolePermission[]
+
+  @@map("permissions")
+}
+
+model Department {
+  id          String       @id @default(uuid())
+  hospitalId  String
+  name        String
+  code        String
+  createdAt   DateTime     @default(now())
+  hospital    Hospital     @relation(fields: [hospitalId], references: [id])
+  memberships Membership[]
+  children    Child[]
+
+  @@unique([hospitalId, code])
+  @@map("departments")
+}
+
+model Role {
+  id          String           @id @default(uuid())
+  hospitalId  String
+  name        String
+  description String?
+  createdAt   DateTime         @default(now())
+  hospital    Hospital         @relation(fields: [hospitalId], references: [id])
+  permissions RolePermission[]
+  memberships Membership[]
+
+  @@unique([hospitalId, name])
+  @@map("roles")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model User {
+  id                       String              @id @default(uuid())
+  email                    String              @unique
+  passwordHash             String
+  status                   String              @default("active")
+  createdAt                DateTime            @default(now())
+  profile                  Profile?
+  memberships              Membership[]
+  refreshTokens            RefreshToken[]
+  registeredChildren       Child[]             @relation("RegisteredBy")
+  administeredVaccinations VaccinationRecord[] @relation("AdministeredBy")
+
+  @@map("users")
+}
+
+model Profile {
+  id          String  @id @default(uuid())
+  userId      String  @unique
+  firstName   String
+  lastName    String
+  phone       String?
+  designation String?
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
+model Membership {
+  id           String      @id @default(uuid())
+  userId       String
+  hospitalId   String
+  departmentId String?
+  roleId       String
+  status       String      @default("active")
+  user         User        @relation(fields: [userId], references: [id])
+  hospital     Hospital    @relation(fields: [hospitalId], references: [id])
+  department   Department? @relation(fields: [departmentId], references: [id])
+  role         Role        @relation(fields: [roleId], references: [id])
+
+  @@unique([userId, hospitalId])
+  @@map("memberships")
+}
+
+model RefreshToken {
+  id           String    @id @default(uuid())
+  userId       String
+  hospitalId   String
+  tokenHash    String    @unique
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  replacedById String?
+  createdAt    DateTime  @default(now())
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hospital     Hospital  @relation(fields: [hospitalId], references: [id])
+
+  @@map("refresh_tokens")
+}
+
+model Child {
+  id             String              @id @default(uuid())
+  hospitalId     String
+  departmentId   String?
+  registeredById String
+  firstName      String
+  lastName       String
+  dateOfBirth    DateTime            @db.Date
+  sex            String
+  mrn            String
+  createdAt      DateTime            @default(now())
+  hospital       Hospital            @relation(fields: [hospitalId], references: [id])
+  department     Department?         @relation(fields: [departmentId], references: [id])
+  registeredBy   User                @relation("RegisteredBy", fields: [registeredById], references: [id])
+  guardians      Guardian[]
+  vaccinations   VaccinationRecord[]
+
+  @@unique([hospitalId, mrn])
+  @@map("children")
+}
+
+model Guardian {
+  id           String   @id @default(uuid())
+  childId      String
+  name         String
+  relationship String
+  phone        String?
+  email        String?
+  isPrimary    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  child        Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@map("guardians")
+}
+
+model VaccineSchedule {
+  id          String  @id @default(uuid())
+  vaccineCode String
+  vaccineName String
+  doseNumber  Int
+  dueAgeDays  Int
+  description String?
+
+  @@unique([vaccineCode, doseNumber])
+  @@map("vaccine_schedules")
+}
+
+model VaccinationRecord {
+  id               String   @id @default(uuid())
+  childId          String
+  vaccineCode      String
+  doseNumber       Int
+  administeredAt   DateTime
+  administeredById String
+  batchNumber      String?
+  notes            String?
+  createdAt        DateTime @default(now())
+  child            Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+  administeredBy   User     @relation("AdministeredBy", fields: [administeredById], references: [id])
+
+  @@unique([childId, vaccineCode, doseNumber])
+  @@map("vaccination_records")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String?
+  hospitalId String?
+  action     String
+  entityType String?
+  entityId   String?
+  outcome    String
+  requestId  String?
+  ip         String?
+  method     String?
+  path       String?
+  statusCode Int?
+  durationMs Int?
+  createdAt  DateTime @default(now())
+  hospital   Hospital? @relation(fields: [hospitalId], references: [id])
+
+  @@index([hospitalId, createdAt])
+  @@index([requestId])
+  @@map("audit_logs")
+}
+
+model NotificationJob {
+  id          String    @id @default(uuid())
+  channel     String
+  recipient   String
+  body        String
+  status      String    @default("PENDING")
+  attempts    Int       @default(0)
+  lastError   String?
+  scheduledAt DateTime  @default(now())
+  sentAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([status, scheduledAt])
+  @@map("notification_jobs")
+}

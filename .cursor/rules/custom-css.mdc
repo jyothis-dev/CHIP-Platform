@@ -1,0 +1,30 @@
+---
+description: Style the React UI with project CSS files and shared tokens
+alwaysApply: true
+---
+
+# Custom CSS
+
+Style the React client with plain CSS in project stylesheets. Do not add Tailwind, CSS-in-JS, or inline `style` objects.
+
+- Put design tokens (`--text`, `--bg`, `--accent`, spacing, type) in `index.css` under `:root`.
+- Put component styles in a colocated `.css` file and import it from the component (`import './App.css'`).
+- Use class names and those tokens. Reuse existing variables before adding new ones.
+- Support light and dark with the existing `prefers-color-scheme` block. Keep layouts usable at the `1024px` breakpoint.
+
+```css
+/* ❌ BAD — inline style */
+<button style={{ background: '#aa3bff', padding: 8 }}>Save</button>
+
+/* ✅ GOOD — class + token */
+<button type="button" className="btn-primary">Save</button>
+```
+
+```css
+.btn-primary {
+  background: var(--accent);
+  color: var(--bg);
+  border-radius: 6px;
+  padding: 8px 16px;
+}
+```

@@ -1,0 +1,23 @@
+---
+description: Change the database schema only through Prisma migrations
+alwaysApply: true
+---
+
+# Database migrations
+
+Change the schema only by adding a Prisma migration. Do not alter tables by hand in a client, shell, or seed script.
+
+- Edit `server/prisma/schema.prisma`, then add a new folder under `server/prisma/migrations/` with a `migration.sql`.
+- One concern per migration (a table, a column, or an index). Name it by what changed, for example `20260323_add_vaccination_records`.
+- Never edit a migration that has already been applied. Add a follow-up migration instead.
+- Ship the migration with the code that depends on it. Do not commit schema drift without SQL.
+- Keep credentials out of migration files. Use the app database URL from the environment.
+
+```sql
+-- ❌ BAD — run directly against the database
+ALTER TABLE children ADD COLUMN mrn varchar(32);
+
+-- ✅ GOOD — server/prisma/migrations/20260323_add_child_mrn/migration.sql
+ALTER TABLE "children" ADD COLUMN "mrn" VARCHAR(32);
+CREATE UNIQUE INDEX "children_mrn_key" ON "children"("mrn");
+```

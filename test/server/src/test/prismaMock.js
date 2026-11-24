@@ -31,6 +31,7 @@ export const prismaMock = {
   auditLog: model(),
   notificationJob: model(),
   $transaction: jest.fn(async (arg) => (typeof arg === 'function' ? arg(prismaMock) : Promise.all(arg))),
+  $queryRaw: jest.fn(),
 };
 
 export function resetPrisma() {

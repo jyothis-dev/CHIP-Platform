@@ -17,9 +17,10 @@ export function errorHandler(err, req, res, _next) {
     message = 'This record already exists';
   }
 
+  const exposeMessage = err instanceof AppError && status !== 500;
   if (status >= 500) {
     logger.error({ err, component: 'http', requestId: req.id, code }, 'request failed');
-    message = 'Something went wrong';
+    if (!exposeMessage) message = 'Something went wrong';
   } else {
     logger.warn({ component: 'http', requestId: req.id, code, status }, 'request rejected');
   }

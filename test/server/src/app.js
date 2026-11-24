@@ -2,6 +2,9 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import { env } from './config/env.js';
+import { asyncHandler } from './shared/asyncHandler.js';
+import { AppError } from './shared/errors.js';
+import { checkDatabase } from './shared/database.js';
 import { requestId } from './middleware/requestId.js';
 import { requestLogger } from './middleware/requestLogger.js';
 import { requestAudit } from './middleware/requestAudit.js';
@@ -23,9 +26,14 @@ app.use(cors({ origin: env.corsOrigin, credentials: true }));
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 
-app.get('/health', (_req, res) => {
-  res.json({ success: true, message: 'OK' });
-});
+app.get('/health', asyncHandler(async (_req, res) => {
+  try {
+    await checkDatabase();
+  } catch (err) {
+    throw new AppError(503, 'DATABASE_UNAVAILABLE', 'Database is unreachable', { cause: err });
+  }
+  res.json({ success: true, message: 'OK', database: 'up' });
+}));
 
 app.use('/auth', authRoutes);
 app.use('/hospitals', organisationRoutes);

@@ -52,6 +52,26 @@ describe('API', () => {
     resetPrisma();
   });
 
+  it('reports the database connection on the health check', async () => {
+    prismaMock.$queryRaw.mockResolvedValue([1]);
+
+    const res = await request(app).get('/health');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ success: true, message: 'OK', database: 'up' });
+  });
+
+  it('returns 503 when the database is unreachable', async () => {
+    prismaMock.$queryRaw.mockRejectedValue(new Error("Can't reach database server at secret-host"));
+
+    const res = await request(app).get('/health');
+
+    expect(res.status).toBe(503);
+    expect(res.body.code).toBe('DATABASE_UNAVAILABLE');
+    expect(res.body.message).toBe('Database is unreachable');
+    expect(JSON.stringify(res.body)).not.toContain('secret-host');
+  });
+
   it('logs in and sets a refresh cookie without returning the refresh token', async () => {
     prismaMock.user.findUnique.mockResolvedValue({
       id: userId,

@@ -1,0 +1,217 @@
+---
+description: Testing, sandbox verification, callback evidence and implementation-status reporting for the CHIP ABDM assignment.
+globs: "server/tests/**/*,client/**/*test*,server/**/*test*,docs/testing/**/*,docs/evaluation/**/*"
+alwaysApply: false
+---
+
+# Testing and Sandbox Evidence Rule
+
+## 1. Testing requirements
+
+For every feature, identify the appropriate tests:
+
+- Unit tests for business logic.
+- Integration tests for database and module interactions.
+- API tests for Express endpoints.
+- Callback tests for asynchronous processing.
+- Sandbox tests for actual ABDM integration.
+
+Do not substitute one test category for another.
+
+## 2. Test cases
+
+For each milestone, cover applicable scenarios.
+
+### M1 — ABHA
+
+- Valid creation request.
+- Invalid request payload.
+- Missing required fields.
+- Authentication failure.
+- OTP validation failure, where applicable.
+- Successful verification.
+- Expired or invalid transaction.
+- Upstream API error.
+
+### M2 — Health records
+
+- Patient and facility association.
+- Health-record creation.
+- Care-context creation.
+- Linking request.
+- Successful linking callback.
+- Failed linking callback.
+- Duplicate callback.
+- Invalid FHIR resource.
+- Valid FHIR Bundle.
+- Health-information sharing workflow.
+
+### M3 — Consent exchange
+
+- Consent request creation.
+- Consent notification.
+- Consent granted.
+- Consent rejected.
+- Consent expired.
+- Consent revoked.
+- Unauthorized information request.
+- Valid authorized information request.
+- Transfer failure.
+- Transfer acknowledgement.
+- Duplicate callback.
+
+### M4 — HPR and HFR
+
+- Professional lookup.
+- Facility lookup.
+- Valid registration request where supported.
+- Invalid registration data.
+- Verification workflow where supported.
+- Unknown registry identifier.
+- Authentication or upstream API failure.
+
+### Shared integration
+
+- Missing credentials.
+- Expired token.
+- Network timeout.
+- Invalid upstream response.
+- Duplicate transaction.
+- Duplicate callback.
+- Callback for unknown transaction.
+- Database failure.
+- Sensitive-data redaction.
+
+## 3. Sandbox evidence
+
+For every actual sandbox operation, record:
+
+- Milestone.
+- Workflow.
+- API operation name.
+- Specification version or date.
+- Test execution date and time.
+- Environment: sandbox only.
+- Sanitized request.
+- Sanitized response.
+- HTTP status.
+- Relevant non-sensitive transaction reference.
+- Callback received or not applicable.
+- Final workflow status.
+- Test result.
+- Known issue, if any.
+
+Never include:
+
+- Real Aadhaar numbers.
+- OTP values.
+- Passwords.
+- Access tokens.
+- Client secrets.
+- Private keys.
+- Unredacted health information.
+- Sensitive personal information.
+
+Use synthetic sandbox data only.
+
+## 4. Evidence status
+
+Use these exact statuses:
+
+### IMPLEMENTED_AND_SANDBOX_TESTED
+
+The implementation was executed successfully against the ABDM sandbox and supporting evidence exists.
+
+### IMPLEMENTED_NOT_SANDBOX_TESTED
+
+The code is implemented but has not been verified against the ABDM sandbox.
+
+### MOCKED_OR_SIMULATED
+
+The workflow uses local mocks, fixtures or simulated callbacks.
+
+### PENDING
+
+The feature has not been implemented.
+
+### BLOCKED_BY_EXTERNAL_DEPENDENCY
+
+Implementation or verification is blocked by missing credentials, configuration, permissions, sandbox availability or external dependencies.
+
+Do not upgrade a status without evidence.
+
+## 5. Callback testing
+
+Test callback handling independently from the initial API request.
+
+Verify:
+
+- Correct callback route.
+- Required headers.
+- Payload validation.
+- Transaction correlation.
+- Event persistence.
+- Duplicate detection.
+- Idempotent processing.
+- Correct status transition.
+- Correct callback acknowledgement.
+- Error handling.
+
+Use mock callbacks for local tests, but label them as mocked. Record actual sandbox callbacks separately.
+
+## 6. Evidence document
+
+Maintain `docs/testing/testing-evidence.md`.
+
+Use this table:
+
+| Milestone | Workflow | Implementation status | Test type | Result | Evidence reference |
+|---|---|---|---|---|---|
+| M1 | ABHA creation | Pending | Pending | Pending | Pending |
+| M1 | ABHA verification | Pending | Pending | Pending | Pending |
+| M2 | Care-context linking | Pending | Pending | Pending | Pending |
+| M2 | Health-record sharing | Pending | Pending | Pending | Pending |
+| M3 | Consent request | Pending | Pending | Pending | Pending |
+| M3 | Health-information transfer | Pending | Pending | Pending | Pending |
+| M4 | HPR lookup | Pending | Pending | Pending | Pending |
+| M4 | HFR lookup | Pending | Pending | Pending | Pending |
+
+Replace placeholders only when actual implementation or testing occurs.
+
+Use the five exact status categories in the Implementation status column once you have inspected the repo (PENDING or BLOCKED_BY_EXTERNAL_DEPENDENCY). Do not leave the word "Pending" if the rule's exact category is PENDING. The table above is the required starting shape; after inspection, set Implementation status to the exact category and keep Test type / Result / Evidence as not executed unless you actually ran something. Do NOT run the test suite for this task. Do NOT invent results.
+
+## 7. Test execution reporting
+
+After running tests, report:
+
+- Exact command.
+- Number of tests executed.
+- Number passed.
+- Number failed.
+- Number skipped.
+- Relevant failure details.
+- Whether the test used mocks or the sandbox.
+
+Never claim tests passed if they were not executed.
+
+Never fabricate test output.
+
+## 8. Final assignment verification
+
+Maintain a checklist against all mandatory deliverables:
+
+- Source code for M1–M4.
+- GitHub repository and commit history.
+- Working prototype.
+- Database schema.
+- API documentation.
+- Architecture diagram.
+- Sandbox evidence for each milestone.
+- Screenshots or recording.
+- API endpoints, callbacks and workflow documentation.
+- Known issues and limitations.
+- Setup and deployment instructions.
+- AI usage documentation.
+- Answers to all 15 technical questions.
+
+Before final submission, identify every incomplete item honestly.

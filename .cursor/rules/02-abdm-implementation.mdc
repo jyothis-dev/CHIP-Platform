@@ -1,0 +1,209 @@
+---
+description: ABDM-specific implementation requirements for M1 ABHA, M2 health records, M3 consent exchange, M4 HPR/HFR and shared integration services.
+globs: "server/src/modules/**/*,server/src/integrations/abdm/**/*,server/prisma/**/*"
+alwaysApply: false
+---
+
+# ABDM Integration Implementation Rule
+
+## 1. Specification-first implementation
+
+Before implementing an ABDM operation:
+
+1. Identify the milestone and workflow.
+2. Locate the applicable official documentation.
+3. Locate the exact API operation in the relevant Swagger/OpenAPI specification.
+4. Verify the API version and specification date.
+5. Inspect the request schema, response schema, headers, authentication and error responses.
+6. Identify whether the operation requires a callback.
+7. Record any prerequisite bridge, facility or sandbox configuration.
+8. Implement only after the contract is understood.
+
+Do not rely on outdated examples or assumptions from unrelated ABDM versions.
+
+If the exact specification is unavailable, do not invent an implementation. Document the blocker and ask for the missing specification or sandbox details.
+
+## 2. Shared ABDM integration layer
+
+Use a shared integration layer for:
+
+- Sandbox configuration.
+- Authentication and token management.
+- Axios HTTP client.
+- Required headers and request identifiers.
+- Request and response normalization.
+- Callback routing and processing.
+- Certificate handling.
+- Protocol-specific encryption and decryption.
+- FHIR validation.
+- Error normalization.
+- Transaction tracking.
+
+Milestone services should use this shared layer instead of implementing their own independent ABDM HTTP clients.
+
+Keep external API paths and payload definitions in clearly organized integration modules. Avoid scattering hardcoded URLs throughout business services.
+
+## 3. M1 — ABHA
+
+Implement only workflows supported by the supplied and current ABHA API specification.
+
+For each operation:
+
+- Follow the exact authentication mechanism.
+- Follow required headers and payload schemas.
+- Implement applicable OTP and verification steps.
+- Validate ABHA identifiers and addresses according to the official contract.
+- Handle transaction status and error responses.
+- Protect sensitive identity information.
+- Persist only information necessary for the workflow.
+- Redact sensitive values from logs.
+- Document the actual operation and its test status.
+
+Do not assume that every ABHA workflow has the same OTP, authentication or response structure.
+
+## 4. M2 — Health records and HIP
+
+Keep patient management, health records, care contexts and ABDM linking as distinct business concepts.
+
+Implement, where supported:
+
+- Patient and facility association.
+- Health-record creation.
+- Care-context creation.
+- Care-context linking.
+- HIP-related registration or configuration prerequisites.
+- Linking confirmation.
+- Health-information sharing.
+- Required asynchronous callbacks.
+- FHIR resource and Bundle generation.
+
+FHIR requirements must come from the applicable ABDM FHIR profiles and implementation guides.
+
+Do not treat arbitrary JSON as a valid ABDM FHIR payload.
+
+Validate:
+
+- Resource type.
+- Required elements.
+- Identifiers and references.
+- Bundle structure.
+- Profile constraints.
+- Required terminology and code systems where specified.
+
+## 5. M3 — Consent-based exchange
+
+Implement consent workflows according to the applicable ABDM specification.
+
+Maintain distinct handling for:
+
+- Consent request.
+- Consent notification.
+- Consent artefact.
+- Consent status.
+- Consent expiry.
+- Consent rejection.
+- Consent revocation.
+- Health-information request.
+- Health-information transfer.
+- Transfer acknowledgement or receipt.
+
+Before disclosing health information, validate the applicable consent artefact and authorization requirements.
+
+Check purpose, permitted information types, date range, validity period and other constraints required by the actual consent artefact.
+
+A pending consent request is not authorization to disclose health information.
+
+Do not transfer records merely because a consent request was created or accepted at an earlier stage. Check the current authorization state required by the applicable workflow.
+
+## 6. M4 — HPR and HFR
+
+Separate professional registry operations from facility registry operations.
+
+Implement:
+
+- Registry lookup.
+- Registration workflows where supported.
+- Verification workflows where supported.
+- Professional and facility data validation.
+- Registry transaction tracking.
+- Professional-facility association.
+
+Use official registry identifiers and schemas. Do not invent fields or assume that an application-side facility record is equivalent to an HFR-verified facility.
+
+Record sandbox permissions or unavailable operations as external dependencies.
+
+## 7. HIP and HIU responsibilities
+
+Do not hardcode a facility as permanently HIP-only or HIU-only unless the applicable configuration requires that restriction.
+
+The same healthcare application may participate in different workflows in different roles.
+
+Keep the role and facility/bridge configuration explicit and validate it against the official ABDM configuration.
+
+## 8. Transaction and callback processing
+
+For every asynchronous operation:
+
+- Create an internal transaction record.
+- Store applicable ABDM request, transaction and correlation identifiers.
+- Store the workflow and facility/bridge context.
+- Record the initial response.
+- Wait for the required callback or subsequent protocol event.
+- Persist callback events.
+- Deduplicate according to a stable event identity defined by the API contract.
+- Process events idempotently.
+- Update transaction status only after successful processing.
+- Record failure and recovery information.
+
+Do not assume one request ID identifies every callback event.
+
+Do not return a successful business status simply because the external API returned an accepted response.
+
+## 9. Error handling and retries
+
+- Distinguish transport errors, authentication failures, validation failures and business errors.
+- Preserve relevant external status and error codes.
+- Redact sensitive values.
+- Avoid exposing raw upstream error payloads to the frontend.
+- Retry only transient failures where retry is permitted.
+- Do not retry non-idempotent operations blindly.
+- Use idempotency or duplicate detection where supported.
+- Record retry attempts and outcomes.
+
+## 10. Database boundaries
+
+- Use Prisma repositories for database access.
+- Keep business logic in services.
+- Use database transactions for related state changes where appropriate.
+- Enforce unique constraints for identifiers that must be unique.
+- Index frequently queried transaction and callback identifiers.
+- Persist status transitions when history is required.
+- Do not store unnecessary copies of sensitive identifiers or health data.
+- Keep schema changes in Prisma migrations.
+
+## 11. Do not fake integrations
+
+Mock services may be used for local development and automated tests.
+
+However:
+
+- Label mocks clearly.
+- Keep mock implementations separate from sandbox clients.
+- Never silently fall back to mocks when sandbox communication fails.
+- Never present mock responses as real ABDM responses.
+- Record whether each workflow was actually tested in the sandbox.
+
+## 12. Definition of implementation completion
+
+A milestone workflow is complete only when:
+
+- Its specification has been reviewed.
+- Its business logic is implemented.
+- Its persistence is implemented where required.
+- Its validation and error handling are implemented.
+- Its callback behavior is implemented where required.
+- Relevant tests have been executed.
+- Its documentation is updated.
+- Its actual sandbox test status is recorded.
+
+Do not mark a whole milestone complete merely because its routes or UI screens exist.

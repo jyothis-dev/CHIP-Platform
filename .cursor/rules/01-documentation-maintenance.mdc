@@ -1,0 +1,197 @@
+---
+description: Maintain all assignment documentation whenever implementation, APIs, database models, workflows, security, configuration or tests change.
+globs: "server/**/*,client/**/*,docs/**/*,swagger/**/*,package.json,*.json,*.yaml,*.yml"
+alwaysApply: false
+---
+
+# Documentation Maintenance Rule
+
+## 1. Required documentation
+
+Maintain these canonical documents:
+
+| Document | Required contents |
+|---|---|
+| README.md | Project overview, prerequisites, setup, environment, commands, features and limitations |
+| docs/architecture/architecture.md | Architecture, module boundaries, component responsibilities and integration diagrams |
+| docs/database/database-schema.md | Tables, fields, relationships, indexes, enums and migration details |
+| docs/api/api-documentation.md | Internal API routes, methods, authentication, validation, request and response examples |
+| docs/workflows/m1-abha.md | ABHA workflows, API operations, authentication, verification, callbacks and status transitions |
+| docs/workflows/m2-health-records.md | Patient, HIP, care-context, linking, FHIR and sharing workflows |
+| docs/workflows/m3-consent-exchange.md | Consent initiation, notifications, authorization, exchange, expiry and revocation |
+| docs/workflows/m4-hpr-hfr.md | HPR/HFR lookup, registration, verification and facility/professional association |
+| docs/security/security.md | Authentication, authorization, encryption, secret management, redaction and audit controls |
+| docs/testing/testing-evidence.md | Test cases, actual results, sandbox evidence and implementation status |
+| docs/deployment/setup-and-deployment.md | Local setup, environment configuration, callback exposure and deployment |
+| docs/evaluation/technical-answers.md | Answers to all 15 assignment questions |
+| docs/evaluation/ai-usage.md | AI tools, MCP setup, prompts, generated code, manual corrections and validation |
+| docs/known-limitations.md | Known issues, blocked dependencies, mocked workflows and pending work |
+
+Create a document if it does not exist. Do not create duplicate alternatives.
+
+## 2. Update documentation in the same task
+
+After modifying implementation code, identify the affected documents and update them before completing the task.
+
+Examples:
+
+- New Express route: update API documentation.
+- New Prisma model or migration: update database schema documentation.
+- New ABDM API integration: update the relevant milestone workflow.
+- New callback: update workflow and callback documentation.
+- New authentication or encryption behavior: update security documentation.
+- New test: update testing evidence.
+- New environment variable: update README and setup documentation.
+- New architectural dependency: update architecture documentation.
+- New limitation: update known limitations.
+- New AI-assisted implementation: update AI usage documentation.
+
+Do not update unrelated documents merely to create activity.
+
+## 3. Documentation accuracy
+
+Documentation must reflect the actual source code and verified external specifications.
+
+- Do not document planned functionality as implemented.
+- Do not invent endpoint paths or request/response fields.
+- Use exact API names and methods from the applicable official specification.
+- Clearly identify internal application endpoints versus external ABDM endpoints.
+- Include API specification version or document date where known.
+- Mention when a specification has not been verified against the current sandbox.
+- Use sanitized examples only.
+- Never include real secrets or sensitive personal data.
+- Avoid copying entire external specifications into project documentation.
+
+When an external API detail is unknown, write "Not verified against the applicable official specification" and list what needs verification.
+
+## 4. Required workflow documentation format
+
+Every milestone document should contain:
+
+1. Objective.
+2. ABDM role(s) involved.
+3. Official documentation and specification references.
+4. Prerequisites and configuration.
+5. Actors and systems involved.
+6. End-to-end workflow.
+7. API operations used.
+8. Request and response structure references.
+9. Callback workflow.
+10. Database entities involved.
+11. Transaction and correlation identifiers.
+12. Security and consent requirements.
+13. Error and retry handling.
+14. Tests and sandbox evidence.
+15. Current implementation status.
+16. Known limitations and pending work.
+
+Include Mermaid diagrams where a sequence or workflow diagram materially improves understanding.
+
+## 5. API documentation format
+
+For each internal API, document:
+
+- Module.
+- Method.
+- Internal route.
+- Purpose.
+- Authentication and authorization.
+- Path and query parameters.
+- Request body.
+- Validation rules.
+- Success response.
+- Error responses.
+- Database operations.
+- External ABDM operation, if applicable.
+- Whether processing is synchronous or asynchronous.
+- Callback or transaction behavior.
+
+Keep internal API routes distinct from ABDM external API paths.
+
+## 6. Database documentation format
+
+For each Prisma model, document:
+
+- Table/model name.
+- Purpose.
+- Fields and data types.
+- Primary key.
+- Foreign keys and relationships.
+- Unique constraints.
+- Indexes.
+- Sensitive fields and protection method.
+- Status fields and lifecycle.
+- Related ABDM workflow.
+
+Update the document after every schema or migration change.
+
+## 7. Technical evaluation answers
+
+Maintain `docs/evaluation/technical-answers.md` with numbered answers to all 15 assignment questions.
+
+The document must cover:
+
+### Architecture and interoperability
+1. Complete ABDM integration architecture.
+2. HIP versus HIU and their interaction.
+3. Asynchronous callbacks in M2 and M3.
+4. Transaction IDs, correlation IDs and duplicate requests.
+5. Compliance with current ABDM v3 API specifications.
+
+### Security and data management
+6. Encrypted identifiers and authentication.
+7. Consent and authorization enforcement.
+8. Sensitive-data log prevention.
+9. Audit trails and transaction tracking.
+
+### AI-assisted development
+10. AI tools used and reasons.
+11. Official ABDM documentation and MCP integration.
+12. AI-generated code validation.
+13. Technical issues and resolutions.
+14. Manual intervention and architectural decisions.
+
+### Product ownership
+15. Roadmap for a scalable production-ready CHIP interoperability platform.
+
+Answers must be based on actual implementation. If a feature is not implemented, explicitly explain the intended design and current status.
+
+## 8. README maintenance
+
+Keep README.md as the primary entry point.
+
+It must include:
+
+- Project objective.
+- Technology stack.
+- Architecture overview.
+- Repository structure.
+- Prerequisites.
+- Installation and setup.
+- Environment variable reference without secret values.
+- Database migration commands.
+- Development and test commands.
+- Swagger documentation access.
+- Callback configuration requirements.
+- Milestone implementation status.
+- Sandbox testing status.
+- Known limitations.
+- Documentation links.
+
+Update setup commands whenever package scripts or dependencies change.
+
+## 9. Final documentation review
+
+Before declaring the project ready for submission:
+
+- Compare the repository against every mandatory assignment deliverable.
+- Verify all 15 technical answers exist.
+- Verify all four milestone documents exist.
+- Verify database documentation matches Prisma models.
+- Verify API documentation matches Express routes.
+- Verify tests and sandbox evidence are genuine.
+- Verify known limitations are disclosed.
+- Verify README setup instructions work from a clean checkout.
+- Check that no credentials or sensitive data appear in tracked files.
+
+Maintain consistency across documents. Prefer updating one canonical document and linking to it rather than repeating the same content in several places.

@@ -1,0 +1,156 @@
+---
+description: Core project instructions for the WombTo18 CHIP ABDM integration assignment.
+alwaysApply: true
+---
+
+# WombTo18 CHIP — Project Governance
+
+## 1. Project objective
+
+Develop a working ABDM integration prototype for WombTo18's Child Health Infrastructure Platform (CHIP).
+
+The assignment has four milestones:
+
+- M1: ABHA creation and verification.
+- M2: Health-record creation, linking and sharing.
+- M3: Consent-based health information exchange.
+- M4: HPR and HFR integration.
+
+The implementation must be demonstrable, maintainable, secure and supported by technical documentation and sandbox testing evidence.
+
+## 2. Technology decisions
+
+Use the following stack unless the user explicitly approves a change:
+
+- Frontend: React.js with Vite.
+- Backend: Node.js and Express.js.
+- Language: JavaScript using ES Modules.
+- React files: JSX, not TSX.
+- Database: PostgreSQL.
+- ORM: Prisma.
+- HTTP client: Axios.
+- API documentation: Swagger/OpenAPI.
+- Architecture: Modular Monolith.
+- Styling: Custom CSS.
+- State management: Keep state management simple; introduce a library only when justified.
+
+Do not introduce TypeScript, Tailwind CSS, microservices, Redis or BullMQ without explicit approval.
+
+## 3. Architecture principles
+
+- Keep M1, M2, M3 and M4 in separate backend modules.
+- Keep ABDM communication in a shared integration layer.
+- Separate routes, controllers, services, repositories and validation.
+- Keep business logic out of controllers.
+- Avoid circular dependencies between modules.
+- Do not access another module's repository directly. Use its service interface.
+- Keep external API contracts separate from internal application API contracts.
+- Reuse common authentication, logging, validation and error-handling utilities.
+
+## 4. Official documentation is the source of truth
+
+For all ABDM integrations:
+
+1. Consult the official ABDM developer documentation.
+2. Use the official ABDM documentation MCP server and milestone-specific skills when configured and available.
+3. Inspect the applicable Swagger/OpenAPI specification.
+4. Verify endpoint paths, methods, headers, authentication, payloads and responses.
+5. Verify callback paths and acknowledgement formats.
+6. Validate implementation against actual sandbox behavior.
+
+Never invent or assume:
+
+- ABDM endpoint paths.
+- HTTP methods.
+- Required headers.
+- Request or response fields.
+- Authentication mechanisms.
+- Callback payloads.
+- Callback acknowledgement formats.
+- Encryption or key-exchange algorithms.
+- FHIR profiles or mandatory resource fields.
+
+If the official specification is unavailable or ambiguous, stop and document the uncertainty. Ask the user for the required documentation or configuration instead of guessing.
+
+The supplied ABHA API V3 Swagger file applies only to the operations it describes. Do not treat it as the complete specification for M2, M3, HPR or HFR.
+
+## 5. Security requirements
+
+- Never hardcode credentials, tokens, passwords or private keys.
+- Use environment variables or an approved secrets manager.
+- Keep actual `.env` files out of Git.
+- Use only approved sandbox credentials and synthetic test data.
+- Never use real Aadhaar numbers, OTPs or patient information in fixtures, logs, screenshots or documentation.
+- Redact access tokens, OTPs, identifiers and health information from logs.
+- Apply authentication and authorization to protected operations.
+- Validate authorization before disclosing health information.
+- Follow the applicable ABDM encryption and certificate requirements.
+- Do not claim that a security control is implemented until its code and configuration have been inspected.
+
+## 6. Asynchronous workflows
+
+Treat asynchronous ABDM workflows as transaction-based processes.
+
+- An accepted HTTP request is not necessarily a completed business transaction.
+- Persist transaction state and relevant correlation identifiers.
+- Implement callbacks according to the exact API contract.
+- Persist callback events before acknowledging them, subject to the required callback response contract.
+- Handle duplicate callbacks idempotently.
+- Maintain transaction status transitions.
+- Record errors and processing outcomes.
+- Do not invent retry behavior. Retry only where permitted by the API contract.
+
+## 7. Development behavior
+
+Before changing code:
+
+1. Inspect the existing project structure.
+2. Read relevant source files and documentation.
+3. Identify existing patterns and dependencies.
+4. Avoid duplicating existing functionality.
+5. Make the smallest coherent change.
+6. Preserve existing working functionality.
+7. Add or update tests.
+8. Update affected documentation.
+
+Do not overwrite working code or create large unrelated refactors without explaining why.
+
+## 8. Documentation is part of implementation
+
+Whenever code, schema, API contracts, workflows, configuration or tests change:
+
+- Identify the affected documentation.
+- Update the relevant document in the same task.
+- Record actual implementation status.
+- Include evidence or test references when available.
+- Update known limitations when necessary.
+
+Do not postpone documentation until the end of the assignment.
+
+Do not create duplicate documents for the same subject. Use the canonical files under `docs/`.
+
+## 9. Truthfulness and implementation status
+
+Use these exact status categories:
+
+- IMPLEMENTED_AND_SANDBOX_TESTED
+- IMPLEMENTED_NOT_SANDBOX_TESTED
+- MOCKED_OR_SIMULATED
+- PENDING
+- BLOCKED_BY_EXTERNAL_DEPENDENCY
+
+Never claim that an endpoint, callback, FHIR workflow, security control or milestone is completed without evidence.
+
+Never fabricate sandbox responses, test results, screenshots, transaction IDs or credentials.
+
+## 10. Completion summary
+
+At the end of each implementation task, report:
+
+1. Files created or modified.
+2. Functionality implemented.
+3. Tests executed and actual results.
+4. Sandbox operations executed, if any.
+5. Documentation updated.
+6. Remaining limitations or blockers.
+7. Any configuration or manual action required from the user.

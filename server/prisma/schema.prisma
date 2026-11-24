@@ -1,0 +1,194 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PatientType {
+  MOTHER
+  CHILD
+}
+
+enum EncounterType {
+  ANTENATAL
+  DELIVERY
+  CHILD_FOLLOW_UP
+}
+
+model User {
+  id           String     @id @default(uuid())
+  name         String
+  email        String     @unique
+  passwordHash String
+  role         String
+  createdAt    DateTime   @default(now())
+  auditLogs    AuditLog[]
+
+  @@map("users")
+}
+
+model Facility {
+  id           String      @id @default(uuid())
+  name         String
+  hfrReference String?
+  createdAt    DateTime    @default(now())
+  patients     Patient[]
+  encounters   Encounter[]
+  auditLogs    AuditLog[]
+
+  @@map("facilities")
+}
+
+model Patient {
+  id                String                    @id @default(uuid())
+  facilityId        String
+  patientType       PatientType
+  name              String
+  dateOfBirth       DateTime?                 @db.Date
+  createdAt         DateTime                  @default(now())
+  facility          Facility                  @relation(fields: [facilityId], references: [id])
+  asMother          MotherChildRelationship[] @relation("Mother")
+  asChild           MotherChildRelationship[] @relation("Child")
+  pregnancies       Pregnancy[]
+  encounters        Encounter[]
+  abhaIdentity      ABHAIdentity?
+  healthRecords     HealthRecord[]
+  consentRequests   ConsentRequest[]
+
+  @@index([facilityId])
+  @@map("patients")
+}
+
+model MotherChildRelationship {
+  id               String  @id @default(uuid())
+  motherPatientId  String
+  childPatientId   String
+  relationshipType String
+  mother           Patient @relation("Mother", fields: [motherPatientId], references: [id])
+  child            Patient @relation("Child", fields: [childPatientId], references: [id])
+
+  @@unique([motherPatientId, childPatientId])
+  @@map("mother_child_relationships")
+}
+
+model Pregnancy {
+  id               String    @id @default(uuid())
+  motherPatientId  String
+  estimatedDueDate DateTime? @db.Date
+  status           String
+  deliveryDate     DateTime? @db.Date
+  createdAt        DateTime  @default(now())
+  mother           Patient   @relation(fields: [motherPatientId], references: [id])
+
+  @@index([motherPatientId])
+  @@map("pregnancies")
+}
+
+model Encounter {
+  id            String         @id @default(uuid())
+  patientId     String
+  facilityId    String
+  type          EncounterType
+  date          DateTime
+  notes         String?
+  createdAt     DateTime       @default(now())
+  patient       Patient        @relation(fields: [patientId], references: [id])
+  facility      Facility       @relation(fields: [facilityId], references: [id])
+  healthRecords HealthRecord[]
+
+  @@index([patientId])
+  @@index([facilityId])
+  @@map("encounters")
+}
+
+model ABHAIdentity {
+  id                 String  @id @default(uuid())
+  patientId          String  @unique
+  maskedReference    String?
+  verificationStatus String
+  createdAt          DateTime @default(now())
+  patient            Patient @relation(fields: [patientId], references: [id])
+
+  @@map("abha_identities")
+}
+
+model HealthRecord {
+  id                String     @id @default(uuid())
+  patientId         String
+  encounterId       String?
+  fhirProfile       String?
+  recordType        String
+  documentReference String?
+  createdAt         DateTime   @default(now())
+  patient           Patient    @relation(fields: [patientId], references: [id])
+  encounter         Encounter? @relation(fields: [encounterId], references: [id])
+
+  @@index([patientId])
+  @@map("health_records")
+}
+
+model ConsentRequest {
+  id                String    @id @default(uuid())
+  patientId         String
+  workflowReference String?
+  status            String
+  scope             String?
+  validFrom         DateTime?
+  validTo           DateTime?
+  createdAt         DateTime  @default(now())
+  patient           Patient   @relation(fields: [patientId], references: [id])
+
+  @@index([patientId])
+  @@map("consent_requests")
+}
+
+model ABDMTransaction {
+  id                    String          @id @default(uuid())
+  requestId             String          @unique
+  externalTransactionId String?
+  type                  String
+  internalStatus        String
+  externalStatus        String?
+  correlationId         String
+  metadata              Json?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  callbackEvents        CallbackEvent[]
+
+  @@index([correlationId])
+  @@map("abdm_transactions")
+}
+
+model CallbackEvent {
+  id               String           @id @default(uuid())
+  eventIdentity    String           @unique
+  transactionId    String?
+  receivedAt       DateTime         @default(now())
+  processingStatus String
+  payloadMetadata  Json?
+  transaction      ABDMTransaction? @relation(fields: [transactionId], references: [id])
+
+  @@index([transactionId])
+  @@map("callback_events")
+}
+
+model AuditLog {
+  id            String    @id @default(uuid())
+  actorId       String?
+  action        String
+  resourceType  String?
+  resourceId    String?
+  facilityId    String?
+  outcome       String
+  correlationId String?
+  createdAt     DateTime  @default(now())
+  actor         User?     @relation(fields: [actorId], references: [id])
+  facility      Facility? @relation(fields: [facilityId], references: [id])
+
+  @@index([facilityId, createdAt])
+  @@index([correlationId])
+  @@map("audit_logs")
+}

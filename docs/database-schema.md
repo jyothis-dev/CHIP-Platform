@@ -1,20 +1,55 @@
-# Minimal Database Models — WombTo18
+# Database Schema — WombTo18 ABDM Prototype
 
-`server/prisma/schema.prisma` and migration `20261124000000_wombto18_mvp` match this list. The tables are empty of clinical rows. Seed creates one staff user only. An existing local database that still has the old hospital tables must be reset before `npm run db:migrate`.
+This is the **target** schema for implementation. It is not the database that exists today.
 
-Keep the schema small for the 8-hour MVP.
+`server/prisma/schema.prisma` and migration `20261124000000_wombto18_mvp` are the login shell only: `User` (bcrypt `passwordHash`, string `role`, no `facilityId`), `Facility`, `Patient`, `Encounter` (`ANTENATAL` / `DELIVERY` / `CHILD_FOLLOW_UP`), `ABHAIdentity` (masked reference and status only), `HealthRecord`, `ConsentRequest`, `ABDMTransaction`, `CallbackEvent`, and `AuditLog`. The shell also has an unused `Pregnancy` model. This build does not add routes or features for it. The shell does not yet have care contexts, consent artefacts, health-information requests, data transfers, or idempotency keys. Replace that schema with a new migration when implementation starts. Do not treat the shell migration as this design.
 
-- `User`: id, name, email, passwordHash, role.
-- `Facility`: id, name, optional verified HFR reference.
-- `Patient`: id, facilityId, patientType (MOTHER/CHILD), name, dateOfBirth, minimal synthetic demo fields.
-- `MotherChildRelationship`: motherPatientId, childPatientId, relationshipType.
-- `Pregnancy`: motherPatientId, estimatedDueDate, status, optional deliveryDate.
-- `Encounter`: patientId, facilityId, type (ANTENATAL/DELIVERY/CHILD_FOLLOW_UP), date, minimal demo notes.
-- `ABHAIdentity`: patientId, protected/masked identifier reference, verification status.
-- `HealthRecord`: patientId, encounterId, FHIR profile/type, controlled document reference.
-- `ConsentRequest`: patient reference, workflow reference, status, scope/validity metadata required by selected contract.
-- `ABDMTransaction`: unique internal requestId, external transactionId if supplied, type, internal status, external status, correlationId, timestamps, safe metadata.
-- `CallbackEvent`: documented callback event identity or deduplication fingerprint, transaction reference, receivedAt, processing status, minimized/redacted payload metadata.
-- `AuditLog`: actor, action, resource, facility, timestamp, outcome, correlationId.
+PostgreSQL + Prisma. UUID primary keys. `createdAt` / `updatedAt` on every table except `AuditLog`, which is insert-only and has `createdAt` only. Enums for statuses. Every patient-scoped query filters by `facilityId`.
 
-Never store OTPs, access tokens, client secrets, or private keys. Do not store raw sensitive callback bodies without a documented need and appropriate protection. Add only fields required by the selected official API workflow. Enforce patient/facility scope in backend queries.
+No `ABDMBridge`, `FacilityBridge`, or `FacilityBridgeRole` table. The current ABDM developer portal says one bridge serves every facility, and that the callback URL and the credentials are not facility settings. Bridge id, client credentials, and `ABDM_CALLBACK_BASE_URL` stay in server environment. A facility may store an HFR id. Whether a HIP id is per facility is `UNVERIFIED` until the M2 docs are fetched. Do not put client secrets or callback URLs on `Facility`.
+
+## Domain
+
+| Model | Key fields | Constraints / notes |
+|---|---|---|
+| `User` | id, name, email, passwordHash, role (`ADMIN` / `CLINICIAN` / `STAFF`), facilityId | email unique. The shell uses bcrypt (cost 12). New password hashes use Argon2id when auth is rebuilt. |
+| `Facility` | id, name, hfrId?, hfrVerifiedAt?, hfrStatus | hfrId unique when present. No callback URL and no client secret. |
+| `Practitioner` | id, userId?, name, hprId?, hprVerifiedAt?, facilityId | hprId unique when present. One facility is enough for this demo. No join table. |
+| `Patient` | id, facilityId, patientType (`MOTHER` / `CHILD`), name, gender, dateOfBirth, mobileLast4? | index (facilityId, name) |
+| `MotherChildRelationship` | motherPatientId, childPatientId, relationshipType | unique (mother, child) |
+| `Encounter` | id, patientId, facilityId, practitionerId?, type (`IMMUNIZATION`), occurredAt, notes | Current build uses one immunization encounter. `ANTENATAL` and `DELIVERY` stay unused. The shell enum does not include `IMMUNIZATION` yet. |
+| `Pregnancy` | Not in this build | `PENDING`. Do not add the table until the deferred pregnancy routes are in scope. |
+
+## ABDM — identity and records
+
+| Model | Key fields | Constraints / notes |
+|---|---|---|
+| `ABHAIdentity` | patientId unique, abhaNumberEnc (AES-256-GCM ciphertext including nonce and tag), encKeyVersion, abhaNumberHash (HMAC-SHA256), hashKeyVersion, abhaNumberMasked, abhaAddress?, verificationStatus, verifiedAt? | unique abhaNumberHash. At-rest AES-GCM and HMAC are a local control, not a verified ABDM wire requirement. One address column is enough until fetched M1 docs require address history. No Aadhaar, OTP, or user token. |
+| `HealthRecord` | patientId, encounterId, hiType, fhirProfile?, igVersion?, validationStatus (`VALID` / `INVALID` / `UNVERIFIED`), validationSummary, sourceHash | Profile name and IG version stay empty until fetched. No raw bundle stored. |
+| `CareContext` | facilityId, patientId, healthRecordId, referenceNumber, display, linkStatus (`NOT_LINKED` / `LINK_REQUESTED` / `LINKED` / `FAILED`), linkedAt?, transactionId | unique (facilityId, referenceNumber) |
+
+## ABDM — consent and exchange
+
+| Model | Key fields | Constraints / notes |
+|---|---|---|
+| `ConsentRequest` | patientAbhaAddress, purposeCode, hiTypes[], dateFrom, dateTo, expiresAt, externalConsentRequestId?, status (`REQUESTED` / `GRANTED` / `DENIED` / `EXPIRED` / `REVOKED`), transactionId | index externalConsentRequestId. HIU-side request. |
+| `ConsentArtefact` | role (`HIU` / `HIP`), externalArtefactId, consentRequestId?, patientRef, hipId, hiTypes[], careContextRefs[], dateFrom, dateTo, expiresAt, status, revokedAt? | unique (role, externalArtefactId). Many artefacts may point at one `ConsentRequest`. |
+| `HealthInformationRequest` | role (`HIU` / `HIP`), consentArtefactId, externalTransactionId?, dataPushUrl?, status, keyExpiresAt? | Private keys stay in memory or in a short-TTL encrypted field that is never logged. |
+| `DataTransfer` | healthInformationRequestId, careContextId, direction (`PUSH` / `RECEIVE`), externalTransferRef?, correlationId?, status, receiptStatus?, receivedAt?, validatedAt?, failureCode?, attempts, nextAttemptAt?, bytes?, mocked | `mocked=true` is `MOCKED` in the UI. |
+
+## Integration infrastructure
+
+| Model | Key fields | Constraints / notes |
+|---|---|---|
+| `ABDMTransaction` | requestId, externalTxnId?, milestone (`M1`–`M4`), workflow, direction (`OUTBOUND` / `INBOUND`), status, externalStatus?, correlationId, attempts, nextAttemptAt?, callbackDeadlineAt?, lastErrorCode?, safeMetadata (JSONB), evidenceLabel | unique requestId. Index externalTxnId, correlationId, (status, nextAttemptAt). M1 may reach `COMPLETED` on a documented synchronous success. M2 and M3 do not. |
+| `CallbackEvent` | route, dedupKey, transactionId?, receivedAt, processingStatus (`RECEIVED` / `PROCESSED` / `DUPLICATE` / `ORPHANED` / `RETRY` / `DEAD`), attempts, nextAttemptAt?, payloadMinimumEnc?, payloadRedacted (JSONB) | unique (route, dedupKey). `payloadMinimumEnc` holds only fields a later worker must read, encrypted. `payloadRedacted` is the safe copy for the monitor. |
+| `IdempotencyKey` | key, userId, route, requestBodyHash, responseRef, expiresAt | unique (key, userId, route). The same key with a different `requestBodyHash` is a conflict and must not repeat the side effect. `responseRef` is a transaction or resource id, not a raw body. |
+| `AuditLog` | actorId, facilityId, action, resourceType, resourceId, outcome, correlationId, ip?, createdAt | Append-only in application code. That is not tamper-proof. No update or delete path in the app. |
+
+## Never stored
+
+OTPs, Aadhaar numbers, gateway or user access tokens, client secrets, long-lived private keys, raw FHIR bundles, and raw callback bodies.
+
+## Callback retention
+
+A redacted JSON blob alone is not enough when a worker must read a field later. Persist the minimum normalized fields. Encrypt any sensitive field that must be retained, restrict access, and limit retention. Do not copy those fields into logs. Keep a raw payload only if a fetched contract requires it.

@@ -7,7 +7,7 @@ alwaysApply: true
 
 Write activity through `logAudit` in `server/src/shared/audit.js`. Do not scatter `console.log` for audit history.
 
-After a successful state change, and after a denied login or permission check, write one record: `actorId`, `action`, `resourceType`, `resourceId`, `facilityId`, `outcome`, `correlationId`. Cover staff login and logout, and later mother, pregnancy, encounter, and ABDM transaction changes when those flows exist.
+After a successful state change, and after a denied login or permission check, write one record: `actorId`, `action`, `resourceType`, `resourceId`, `facilityId`, `outcome`, `correlationId`. Cover staff login and logout, and later mother, child, immunization encounter, and ABDM transaction changes when those flows exist. Pregnancy is out of the current build.
 
 - Call `logAudit()` from the service after the write commits. Do not audit inside the UI.
 - Store structured fields, not free-text dumps of `req.body`.

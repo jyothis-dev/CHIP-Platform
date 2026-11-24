@@ -1,94 +1,99 @@
-# WombTo18 — Minimal User and ABDM Workflows
+# Workflows — WombTo18 ABDM Prototype
 
-## Local maternity-to-child demo
+All ABDM paths, payloads, headers, acknowledgements and status values must be verified via the ABDM docs MCP server before implementation. The steps below are a checklist to verify, not a protocol contract.
 
-The app only needs a compact flow:
-1. Register one mother.
-2. Add one pregnancy.
-3. Add one antenatal visit.
-4. Record one delivery.
-5. Register one newborn and link to mother.
-6. Add one child follow-up/immunization record.
+Tier legend: **[C]** Core (build first) · **[E]** Extension (build if time allows within the 48h window; otherwise `PENDING`).
 
-This is a demo data journey, not a complete clinical workflow or a clinical decision-support product.
+## Local mother-and-child journey [C]
+1. Register mother → 2. Newborn linked to that mother → 3. One child immunization.
 
-## M1 — ABHA create/verify/login
+Pregnancy, antenatal visit, and delivery are `PENDING`. They are not part of this build.
 
-Target: implement one sandbox-supported path.
+This is a demo data journey only, not a clinical product.
 
-The supplied task notes suggest a flow involving Aadhaar encryption, OTP request/verification, ABHA number/address, and login. Before implementing, verify which of these operations are currently available in the assigned sandbox and their exact contracts.
+## M1 — ABHA creation and verification
 
-Minimum UI:
-- Start supported ABHA workflow for mother.
-- Show `PENDING_VERIFICATION`.
-- Enter approved sandbox OTP only if the documented flow requires it.
-- Show verified result and masked ABHA reference.
-- Display transaction state and safe error.
+| # | Workflow | Tier |
+|---|---|---|
+| 1.1 | ABHA creation via Aadhaar OTP (sandbox test identifiers only) | C |
+| 1.2 | ABHA verification/login via OTP (ABHA number or address) | C |
+| 1.3 | ABHA address selection/creation after enrolment | E |
+| 1.4 | Mobile-OTP variant / ABHA profile fetch | E |
+| 1.5 | ABHA card download (display only, not stored) | E |
 
-Do not implement every identity method or ABHA card design. Never log/store OTP or raw Aadhaar. Do not invent certificate URLs, RSA padding, encryption encoding, OTP flow, or address suffix; use the official documentation and approved sandbox data.
+Requirements:
+- Encrypt identifiers and OTPs exactly as the fetched docs specify (certificate source, algorithm, padding, and encoding). Those details are `UNVERIFIED` until that page is read. Keep the dashes in an ABHA number before encryption. The Build with AI page states that bare digits are refused.
+- Store `txnId` on `ABDMTransaction`. Show `PENDING_VERIFICATION` until OTP verification succeeds.
+- If the fetched verify operation returns the profile and defines no callback, that response may set the M1 transaction to `COMPLETED`. If it defines a callback, wait for that callback. Do not force every M1 call through `WAITING_FOR_CALLBACK`.
+- Persist only: encrypted ABHA number, key version, a lookup hash, the masked value for display, one ABHA address, and verification status and time. Never the OTP, Aadhaar, or user tokens.
+- Map documented error codes to safe UI messages (invalid OTP, expired txn, rate limit). Never echo raw ABDM error bodies to the UI.
+- OTP attempts and resend follow the documented limits. No automatic retry of OTP-consuming calls.
 
-## M2 — HIP record and care-context linking
+## M2 — HIP: records, care-context linking and sharing
 
-Target: one patient, one encounter, one health record, one FHIR example, one linking path.
+| # | Workflow | Tier |
+|---|---|---|
+| 2.1 | Build and validate one FHIR bundle for the child immunization | C |
+| 2.2 | HIP-initiated care-context linking + callback | C |
+| 2.3 | Patient-initiated linking: discover → init → confirm callbacks | E |
+| 2.4 | Respond to health-information request: validate consent → encrypt → push → notify | C (encryption may be `MOCKED` if blocked) |
+| 2.5 | Link status visible per care context | C |
 
-1. Register mother locally and associate verified ABHA reference according to the supported workflow.
-2. Create one antenatal or consultation encounter.
-3. Create a minimal health record.
-4. Build and validate the required FHIR bundle against the exact applicable ABDM/NRCeS profile.
-5. Implement **one** care-context linking path:
-   - HIP-initiated linking, if enabled and simpler in the sandbox; OR
-   - Patient-initiated discover/init/confirm callbacks, if that is the required supported scenario.
-6. Persist transaction state and process the matching callback.
-7. Display final status only after the documented completion event/status.
+Requirements:
+- A care context is linked only if its `HealthRecord` passed FHIR validation.
+- A link is shown as `LINKED` only after the documented completion callback or status.
+- Patient matching for discovery (2.3) uses documented demographic and identifier rules. Ambiguous matches return no match, never a guess.
+- Health-information request handling runs the consent checks listed in `architecture.md` §5 before building any bundle.
 
-Do not implement both paths in the 8-hour MVP unless one is already supplied by starter code.
+## M3 — HIU: consent and health information exchange
 
-## M3 — HIU consent and HIP response
+| # | Workflow | Tier |
+|---|---|---|
+| 3.1 | Consent request initiation (purpose, HI types, date range, expiry, requester) | C |
+| 3.2 | Consent request status/ID callback | C |
+| 3.3 | Consent notification handling: GRANTED, DENIED, EXPIRED, REVOKED | C |
+| 3.4 | Fetch consent artefact(s) | C |
+| 3.5 | HIU health-information request with the documented request/key-material exchange | C (minimum request stage); mark encrypted transfer separately if blocked |
+| 3.6 | Receive data at the HIU data-push URL, decrypt and validate using the fetched specification, persist transfer metadata | C. The route is Core. Encrypted-body handling is `MOCKED` or `PENDING` when the sandbox or the crypto page is unavailable. Same tier as the HIP push in 2.4. |
+| 3.7 | Consent expiry sweeper (local enforcement even without callback) | C |
 
-Target: demonstrate consent state and the role separation. Full encrypted HIE transfer is optional only if time and sandbox readiness allow.
+Consent state rules:
+- `REQUESTED → GRANTED | DENIED | EXPIRED`. `GRANTED → REVOKED | EXPIRED`.
+- Only `GRANTED` and within validity allows a health-information request.
+- `DENIED`, `EXPIRED` and `REVOKED` are terminal for data access. The UI disables the fetch actions and the API returns 403 with a reason code.
 
-HIU minimum:
-1. Enter ABHA address, purpose, health-information types, and date range required by the actual contract.
-2. Initiate consent request.
-3. Store `REQUESTED` as an internal display state if appropriate.
-4. Receive consent notification callback.
-5. Persist the consent status/artefact metadata.
-6. On `GRANTED`, enable the next action only after validating the artefact and scope.
-7. On denied/expired/revoked, block further requests.
+## M4 — HFR and HPR
 
-HIP minimum:
-1. Receive the documented health-information request.
-2. Match patient and request.
-3. Validate consent and requested scope.
-4. If full transfer is not completed, return/record a clearly labelled mock result in the demo environment only; never pretend this is a real ABDM transfer.
+| # | Workflow | Tier |
+|---|---|---|
+| 4.1 | One sandbox-supported HFR operation: lookup or a registration step the fetched M4 page marks as required | C |
+| 4.2 | One sandbox-supported HPR operation: lookup or a registration step the fetched M4 page marks as required | C |
+| 4.3 | Attach an HFR id to `Facility` and an HPR id to `Practitioner` when a response supplies them | C |
+| 4.4 | Remaining facility registration or verification calls | E |
+| 4.5 | Remaining professional registration or verification calls | E |
 
-The user's task notes mention ephemeral keys, ECDH, AES-GCM, encrypted FHIR push, and gateway notification. Implement these only from the exact current official specification and sample code. Do not improvise cryptography. For an 8-hour exercise, it is safer to document full transfer as blocked/mock than to implement insecure or incorrect encryption.
+The portal titles M4 “Register Healthcare Professionals and Health Facilities.” Lookup-only is not the milestone definition. Which calls are mandatory is `UNVERIFIED`. If the sandbox cannot perform registration, record `PENDING` with that prerequisite. Do not relabel a lookup as registration.
 
-## M4 — HFR/HPR
+Requirements:
+- Cache registry results with `fetchedAt`. Show the "last verified" time.
+- If the sandbox registry APIs are unavailable or need prerequisites you don't have, use fixtures labelled `MOCKED` and record the blocker. Never claim registration succeeded.
+- Map registry error codes (not found, invalid ID, unauthorised) to clear UI states.
 
-Target: one lookup operation if available.
-- Search HFR by ID/name and display returned facility details.
-- Optionally search HPR by professional identifier/name if supported.
-- Use verified registry data to populate facility/practitioner references where appropriate.
-- If sandbox APIs are unavailable, use a small fixture and mark it `MOCKED`; do not claim registration/verification.
-
-## Callback lifecycle
-
-For each implemented callback:
-1. Validate the exact documented request.
-2. Persist event with received timestamp and correlation metadata.
-3. Deduplicate using documented callback identity or safe fingerprint.
-4. Find the matching transaction.
-5. Apply allowed state transition.
-6. Persist processing outcome.
-7. Return the exact documented acknowledgement.
-
-Do not assume all callback routes should return 202. Confirm each callback's response contract. Acknowledge only after durable persistence where allowed.
+## Callback lifecycle (all milestones)
+1. Authenticate the caller per the documented contract.
+2. Validate headers and body against the schema.
+3. Insert `CallbackEvent` with unique `(route, dedupKey)`. On a duplicate of that pair, acknowledge and stop. Do not treat the HIP copy and the HIU copy of one ABDM id as the same event.
+4. Return the exact documented acknowledgement.
+5. Correlate to `ABDMTransaction` via the documented field. Unknown correlation → event stored as `ORPHANED`, alert in the monitor, no state change.
+6. Apply the allowed transition. Write the audit record.
+7. On processing error, retry only if the handler is safe to replay; after bounded attempts, mark `DEAD` and retain diagnostic metadata.
+8. A callback arriving after a local timeout/expiry is still persisted. Do not blindly reopen a terminal transaction or discard the callback; reconcile with the documented external status and retain the event history.
 
 ## Internal status labels
+`INITIATED → ACCEPTED → WAITING_FOR_CALLBACK → COMPLETED`, with outcomes `FAILED`, `REJECTED`, `EXPIRED` and `REVOKED` (consent only). External ABDM status is stored separately.
 
-`INITIATED -> ACCEPTED -> WAITING_FOR_CALLBACK -> COMPLETED`
 
-Possible outcomes: `FAILED`, `EXPIRED`, `REJECTED`.
-
-These are internal labels only. Keep external ABDM status separately. Do not treat outbound HTTP 202 as business completion.
+## Cross-milestone boundary
+- M2 is the HIP side: care-context linking, responding to an HIU request, consent validation, FHIR bundle preparation, encryption/push and transfer-status notification.
+- M3 is the HIU side: consent request/status/artefact, health-information request, receiving/decrypting/validating the response and recording receipt.
+- These are two ends of one exchange. Verify the exact protocol sequence and callbacks from the official MCP documentation before implementation; this checklist is not an endpoint contract.

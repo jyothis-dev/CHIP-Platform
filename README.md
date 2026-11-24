@@ -1,125 +1,120 @@
-# WombTo18 — ABDM Prototype (8-Hour MVP)
+# WombTo18 — ABDM Integration Prototype (M1–M4)
 
 ## Objective
 
-Build a small, demonstrable ABDM integration prototype for WombTo18, a maternity-to-child healthcare platform. **The implementation time budget is approximately 8 focused hours.** Do not attempt to build a full maternity EMR or complete every ABDM workflow.
+Build a working, well-structured ABDM integration prototype for WombTo18, a maternity-to-child healthcare platform, covering all four ABDM milestones:
 
-The demo uses a small synthetic patient scenario:
-- Register one mother.
-- Create one pregnancy and one antenatal visit.
-- Record one delivery and register one newborn.
-- Add one child follow-up/immunization record.
-- Demonstrate the ABDM integration architecture and a narrowly selected workflow for M1–M4.
+- **M1** — Create and verify ABHA.
+- **M2** — Create, link and share health records (HIP role).
+- **M3** — Health information exchange with consent (HIU role).
+- **M4** — HPR / HFR registry integration.
 
-The maternal/child records are lightweight demo records only. Do not build clinical decision support, a complete immunization schedule, growth charts, billing, appointments, or a production-grade patient portal.
+Delivery window: **48 hours**. Build in two tiers (see `docs/implementation-plan.md`):
 
-## Required architecture
+- **Core tier (~8 focused hours):** login, one mother-to-child record, one M1 OTP path or an explicit `PENDING`, one HIP link with a fixture callback until the real path is fetched, a consent check that blocks sharing, and one M4 call or a labelled `MOCKED`. Details are in `docs/implementation-plan.md`.
+- **Extension tier (remaining window):** extra M1 variants, patient-initiated linking, real encrypted M3 transfer, the HL7 validator, and further M4 registration calls.
 
-One Express backend and one application with two integration roles:
+Every requirement in the assignment is tracked in `docs/requirements-traceability.md` with one of four honest status labels. Nothing is dropped silently: anything not built is listed as `PENDING` with a reason.
 
-- **HIP side:** holds local patient/clinical records and provides records when a valid consent-based request is received.
-- **HIU side:** initiates consent-based requests and receives records.
+## Status labels (aligned to assignment §6)
 
-These are workflow roles, not separate services or separate applications. The same backend can expose both sides, but each operation must follow the official sandbox role configuration and protocol.
+| Label | Meaning |
+|---|---|
+| `SANDBOX_TESTED` | Implemented and executed successfully against the ABDM sandbox; evidence captured. |
+| `IMPLEMENTED_NOT_SANDBOX_TESTED` | Implemented in code, but not executed successfully against the ABDM sandbox. State the exact reason and evidence; do not imply tests passed unless they were run. |
+| `MOCKED` | Behaviour simulated with labelled fixtures; no ABDM call is made. |
+| `PENDING` | Not yet implemented; reason and next step recorded. |
 
-Core components:
-1. ABDM client adapter: centralizes documented headers, request identifiers, timestamp, CM identifier, auth, timeouts, and safe logging. Generate a correlation ID for every internal integration operation. Use retries only for documented transient and safe-to-retry operations.
-2. Callback router: public HTTPS callback routes as required by the sandbox. Validate the documented contract, persist events, deduplicate, then process. Return the exact acknowledgement required by ABDM. **Do not assume every callback should return HTTP 202**; verify each callback contract. If processing asynchronously, acknowledge only after durable persistence where the contract allows.
-3. Transaction table: internal request ID, documented external transaction ID, workflow type, status, correlation ID, timestamps, and safe metadata. Keep external status separate from internal status. A successful HTTP acknowledgement does not mean the workflow completed; apply final status only after the matching callback or documented status response.
-4. Idempotency: unique constraints for internal request IDs and stable callback event IDs where provided. If the callback has no unique event ID, define a safe deduplication strategy from documented fields; do not assume every callback has a callback ID.
-5. Audit log: actor, action, resource type/id, facility, timestamp, outcome. Never log Aadhaar, OTP, access tokens, client secrets, private keys, or raw clinical payloads.
-6. FHIR module: create the smallest required resource/bundle for one selected clinical use case and validate against the exact applicable ABDM/NRCeS profile and version.
-7. Swagger/OpenAPI for internal IMS endpoints; Jest/Supertest or the existing project test runner for a few focused tests, including callback fixture tests.
+The UI shows the same label next to each workflow.
 
-## Minimal WombTo18 user journey
+## Demo scenario (synthetic data only)
 
 1. Staff logs in.
-2. Register/find a mother.
-3. Create pregnancy profile and one antenatal visit.
-4. Record delivery.
-5. Register newborn and link newborn to mother.
-6. Add one child follow-up/immunization record.
-7. Display ABHA identity/workflow status.
-8. Demonstrate one M2 care-context/record workflow.
-9. Demonstrate one M3 consent state and the HIP/HIU boundary.
-10. Show M4 HFR/HPR lookup result or clearly labelled mock.
-11. Show transaction and audit timeline.
+2. Register or find a mother; create or verify her ABHA (M1).
+3. Register the newborn and link it to the mother.
+4. Add one child immunization record.
+5. Build one FHIR bundle for that immunization and link it as a care context (M2).
+6. As HIU, raise a consent request, receive the consent notification, and fetch records (M3).
+7. As HIP, validate the consent and serve the health-information request (M2 sharing).
+8. Look up the facility (HFR) and practitioner (HPR) and attach verified references (M4).
+9. Show the transaction timeline (accepted → waiting → completed/failed) and the audit trail.
 
-## M1–M4 scope for an 8-hour prototype
+Pregnancy, antenatal visit, and delivery are `PENDING`. They are listed under deferred routes in `docs/api-inventory.md`.
 
-| Milestone | Minimum demonstration | What not to build |
-|---|---|---|
-| M1 | One sandbox-supported ABHA create/verify or login workflow; show pending and final status | Every Aadhaar/mobile/ABHA-address variation and full profile/card polish |
-| M2 | One local clinical record mapped to a minimal applicable FHIR bundle; one supported care-context linking path and callback | Both HIP-initiated and patient-initiated linking unless time remains |
-| M3 | One consent initiation/status flow and a clearly separated HIP/HIU design; use a labelled simulation for encrypted transfer if real sandbox transfer is not feasible | Full bidirectional production-grade HIE unless explicitly required and sandbox-ready |
-| M4 | One HFR lookup and/or HPR lookup if accessible; otherwise fixture-backed mock labelled as mock | Full registry registration lifecycle if sandbox APIs/prerequisites are unavailable |
+The maternal and child records are lightweight demo records. Out of scope: clinical decision support, full immunization schedules, growth charts, billing and appointments.
 
-Use only approved sandbox test identifiers and OTPs. Never use real Aadhaar or personal health data.
+## Architecture summary
+
+One React frontend and one Express backend. The backend holds **both ABDM roles**:
+
+- **HIP module:** owns local clinical records, links care contexts, and releases records only against a valid consent artefact.
+- **HIU module:** raises consent requests and receives and decrypts health information.
+
+These are roles in one deployment, not separate services. Details are in `docs/architecture.md`.
+
+Shared building blocks:
+
+1. **ABDM client adapter.** Gateway session token cache, documented headers (request ID, timestamp, CM ID and others, per API), timeouts, a retry policy for safe operations, correlation ID propagation and redacted logging.
+2. **Callback router.** Public HTTPS routes per the official contracts: validate, persist durably, deduplicate, acknowledge exactly as documented, then process.
+3. **Transaction store.** Internal request ID, external transaction or request IDs, workflow, milestone, internal and external status kept separately, attempts and last error. An accepted request is never treated as completed.
+4. **Idempotency.** A unique constraint on the outbound request ID, a unique callback dedup key, and an `Idempotency-Key` header on internal POST routes.
+5. **Retry and recovery.** A DB-backed retry schedule (`attempts`, `nextAttemptAt`) and a lightweight in-process sweeper. There is no Redis or queue infrastructure, by design.
+6. **Audit log.** Actor, action, resource, facility, correlation ID and outcome, with no secrets or clinical payloads.
+7. **FHIR module.** Builds one bundle for the selected encounter after the NRCeS profile name and IG version are fetched. Those names are `UNVERIFIED`. The Java validator is Extension, not Core.
+8. **API docs and tests.** Swagger/OpenAPI for internal routes plus the callback routes; Jest and Supertest, including callback fixture tests.
 
 ## Technology
 
-- React + Vite, JavaScript/JSX
-- Node.js + Express, JavaScript ES Modules
-- PostgreSQL + Prisma (or existing project database if already configured)
-- Axios
-- Swagger/OpenAPI
-- Jest + Supertest (or existing test stack)
-- Pino or equivalent structured logger with redaction
+| Layer | Choice | Note |
+|---|---|---|
+| Frontend | React + Vite (JSX) | Assignment preference |
+| Backend | Node.js + Express (ES Modules) | Assignment preference |
+| Database | PostgreSQL + Prisma | Migrations committed |
+| HTTP | Axios with interceptors | Central ABDM client |
+| Validation | Zod (or Joi) | Request and callback payloads |
+| Logging | Pino with `redact` paths | See `docs/security.md` |
+| Docs | Swagger/OpenAPI 3 | `/api-docs` |
+| Tests | Jest + Supertest | Callback fixtures, state machine, redaction |
+| FHIR validation | HL7 FHIR Validator (Java CLI) with the NRCeS ABDM IG package | Version pinned in `.env.example` |
 
-Avoid microservices, Redis, BullMQ, queues, Kubernetes, complex admin, and unnecessary abstractions.
+Excluded by design for prototype scope: microservices, Redis, BullMQ and Kubernetes. The production path for these is covered in `docs/technical-answers.md`, question 14.
 
-## Minimal screens
+## Documentation map
 
-1. Login (can be a simple demo login if allowed by assignment)
-2. Dashboard
-3. Mother/Child list and registration
-4. Mother profile: pregnancy + antenatal visit + delivery
-5. Child profile: newborn + one follow-up/immunization record
-6. ABDM panel: M1 status, M2 care-context status, M3 consent status, M4 lookup
-7. Transaction monitor
-
-A compact tabbed profile is sufficient. Do not create a separate screen for every API call.
-
-## Minimal database
-
-- `User` (or simple demo auth)
-- `Facility`
-- `Patient` (mother/child)
-- `MotherChildRelationship`
-- `Pregnancy`
-- `Encounter` (antenatal, delivery, child follow-up)
-- `ABHAIdentity` (only required safe references/status; protect identifiers)
-- `HealthRecord` (metadata and controlled FHIR reference)
-- `ConsentRequest` (minimum metadata for selected M3 workflow)
-- `ABDMTransaction`
-- `CallbackEvent`
-- `AuditLog`
-
-Do not store OTPs, access tokens, secrets, or private keys in the database. Do not store raw sensitive callback payloads unless the official requirement and security design justify it; prefer redacted/minimized payload storage.
-
-## Suggested 8-hour timebox
-
-See `docs/implementation-plan.md`. If a real sandbox workflow is blocked by credentials, role configuration, public callback access, or missing prerequisites, timebox the investigation and implement a clearly labelled fixture-backed simulation. Do not claim it is sandbox-tested.
+| Document | Purpose | Assignment ref |
+|---|---|---|
+| `docs/requirements-traceability.md` | Every assignment requirement mapped to module, status and evidence | §3, §4, §6 |
+| `docs/architecture.md` | Components, HIP/HIU boundary, sequence diagrams, state machine | §6, §7 |
+| `docs/workflows.md` | M1–M4 workflow specifications and callback lifecycle | §3 |
+| `docs/api-inventory.md` | Internal API routes and ABDM callback routes | §6 |
+| `docs/database-schema.md` | Data model and constraints | §6 |
+| `docs/security.md` | Credentials, encryption, redaction, consent enforcement | §5, §7 |
+| `docs/testing-evidence.md` | Test plan and per-milestone sandbox evidence | §6 |
+| `docs/setup-and-deployment.md` | Local setup, environment, callback tunnel, deployment | §6 |
+| `docs/known-issues.md` | Limitations, blockers and pending integrations | §6 |
+| `docs/ai-usage.md` | AI tools, MCP/skills setup, prompts and manual corrections | §6, §7 |
+| `docs/technical-answers.md` | Answers to all assignment §7 questions | §7 |
+| `CURSOR_RULES.md` | Rules for the AI coding assistant | §2 |
 
 ## Non-negotiable correctness
 
-- Official ABDM documentation, current schemas, MCP/skills, and assigned sandbox are the source of truth.
-- Verify exact API paths, required headers, payloads, callback routes/acknowledgements, status values, cryptography, FHIR profiles, and retries. The user's workflow notes are requirements to investigate, not proof of exact protocol details.
-- Do not hard-code an assumed HTTP 202 response for all callbacks.
-- Do not equate API acceptance with completion.
-- Match callbacks to the correct transaction and process duplicates safely.
-- Enforce consent before sharing data.
-- Label each workflow: `SANDBOX_TESTED`, `IMPLEMENTED_NOT_TESTED`, `MOCKED`, or `BLOCKED`.
+- The official ABDM v3 documentation (through the ABDM docs MCP server and milestone skills) and the assigned sandbox are the source of truth. Every ABDM call site carries a comment that links to the doc page it was built from.
+- Never invent endpoints, headers, payload fields, callback acknowledgements, status values, cryptography or FHIR profiles.
+- Do not assume every callback returns HTTP 202. Verify each contract.
+- An accepted request does not mean a completed workflow. Only the matching callback or a documented status response finalizes a transaction.
+- Consent is enforced at the HIP before any record leaves the system.
+- Use synthetic or approved sandbox data only. No real Aadhaar, OTP, token or secret may appear in logs, screenshots or fixtures.
 
-## Definition of done
+## Prerequisites and scope caveats
 
-At the end of 8 focused hours, deliver:
-- A runnable application with the simplified mother-to-child journey.
-- One real sandbox workflow if access is ready (prefer M1 or M2 depending on prerequisites).
-- A shared HIP/HIU integration architecture in one Express backend.
-- Transaction persistence and at least one callback route tested with fixtures.
-- A minimal FHIR example with profile validation if the relevant validator/profile is available.
-- A basic consent status demonstration and M4 lookup/mock with honest labels.
-- Swagger, a few automated tests, setup steps, screenshots, and a short limitations list.
+- The sandbox credentials, enabled roles, facility/bridge configuration, callback registration and approved test identity are external prerequisites. Until they are supplied, do not attempt live ABDM calls or use real patient/Aadhaar data.
+- The Core tier is a prioritisation target, not proof that every workflow is complete. Update traceability with the actual implementation and evidence. If only eight hours are available in total, stop after Core and mark the rest `PENDING`; do not imply the Extension tier was completed.
+- M3 Core includes the HIU health-information request path, not consent initiation alone. If encrypted transfer cannot be completed, isolate the blocked transfer stage as `MOCKED` or `PENDING` and document the exact blocker.
+- M2 owns the HIP side of answering and sharing records; M3 owns the HIU side of consent, requesting and receiving them.
 
 Official starting point: https://docs.abdm.gov.in/docs/hiecm/v3/getting-started/build-with-ai
+Official prompt setup: https://docs.abdm.gov.in/agent-setup/prompt.md
+
+The portal titles M4 “Register Healthcare Professionals and Health Facilities.” Lookup alone does not define that milestone. Which registration APIs are mandatory is `UNVERIFIED` until those pages are fetched. The same page says one bridge serves every facility, and that the callback URL and the credentials are not facility settings. An ABHA number keeps its dashes when it is encrypted. The cipher, padding, and certificate URL are `UNVERIFIED` until the encryption page is fetched.
+
+Do not invent MCP configuration. Follow the current developer-portal setup instructions and copy the exact non-secret configuration for the chosen client.

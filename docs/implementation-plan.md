@@ -1,56 +1,58 @@
-# 8-Hour Implementation Plan — WombTo18
+# Implementation Plan — WombTo18 ABDM Prototype
 
-## Scope discipline
+48-hour window. **Core tier** first (~8 focused hours): a correct, thin slice of every milestone. Then the **Extension tier** for depth. Anything not reached is `PENDING` in `requirements-traceability.md` with a reason. Commit after each row, so the history shows the progression.
 
-You have about 8 focused hours total alongside daily work. The target is a **small working prototype**, not a production ABDM implementation. Use one synthetic mother/child journey, one selected M1 path, one M2 linking path, a minimal M3 consent state flow, and one M4 lookup or labelled mock.
+## Core tier (~8 focused hours)
 
-## Timebox
+This is one thin slice, not every workflow in `workflows.md`. Anything else stays `PENDING`.
 
-| Time | Task | Deliverable |
+| Time | Task | Done when |
 |---|---|---|
-| 0:00–0:30 | Inspect assignment, repo, official docs, sandbox credentials and enabled roles | Confirmed API/workflow checklist; blockers listed |
-| 0:30–1:30 | Minimal app/backend/DB setup and basic auth | React + Express + PostgreSQL running |
-| 1:30–2:15 | Mother, pregnancy, antenatal visit, delivery, newborn, child follow-up | Local WombTo18 demo journey works |
-| 2:15–3:30 | M1 | One supported ABHA workflow or clearly labelled sandbox-blocked mock |
-| 3:30–4:45 | M2 | One FHIR example + one care-context path + callback state |
-| 4:45–5:45 | M3 | Consent initiation/status callback; transfer only if ready |
-| 5:45–6:15 | M4 | One HFR/HPR lookup or fixture-backed mock |
-| 6:15–7:15 | Shared callback/transaction/audit hardening and tests | Duplicate callback test, transaction lifecycle, redacted logs |
-| 7:15–8:00 | Swagger, README, demo screenshots/video, limitations | Submission package |
+| 0:00–0:45 | Read the fetched M1 page only. List sandbox client id, CM id, callback URL, and test identity as present or missing in `known-issues.md`. Do not invent the callback table. | Each prerequisite is filled or marked missing |
+| 0:45–2:00 | Keep the existing Express and Vite shell. Add the target Prisma migration from `database-schema.md`, Pino redaction, and login against `User`. | `npm test` in `server/` still passes, including login |
+| 2:00–3:15 | Domain slice: one mother, one newborn linked to that mother, one immunization encounter. No pregnancy, antenatal visit, or delivery | Those three records save and show in the UI |
+| 3:15–4:30 | M1: one OTP create or verify path, only if the fetched contract and credentials exist. Otherwise stop and mark `PENDING`. | `SANDBOX_TESTED` only with a sanitized log. Otherwise `PENDING` or `IMPLEMENTED_NOT_SANDBOX_TESTED` |
+| 4:30–6:00 | M2: one HIP-initiated link. Callback path stays blank until fetched. Until then, a fixture posts to the handler. Consent guard returns 403 for denied, expired, and revoked. | Link status is `LINKED` only after the fixture or the real callback |
+| 6:00–7:00 | M3: create a consent row and block the HI request unless status is `GRANTED` and in date. Data-push route exists. Encrypted body handling is `MOCKED` if the crypto page or sandbox is missing. | T21-style check is executed locally, or the gap is written down |
+| 7:00–7:30 | M4: one fetched HFR or HPR call, or `MOCKED` with the missing prerequisite. Do not call a lookup “registration.” | Label matches what ran |
+| 7:30–8:00 | Tests T1–T4, T12, T17, T21 as far as the slice exists. Update traceability. | Executed tests recorded. Unrun rows stay unrun |
 
-## What to cut first
+Java FHIR validation, patient-initiated linking, extra M1 methods, real M3 encrypt/decrypt, M4 registration beyond that one call, and the pregnancy / antenatal / delivery routes are not in this Core slice. The maternity routes stay `PENDING`.
 
-If time slips:
-1. Do not build a full ABHA profile/card; show masked identity and status.
-2. Do not implement both M2 linking paths; choose one.
-3. Do not implement full M3 encrypted transfer unless the official sample and sandbox are ready; demonstrate consent states and clearly mark transfer as blocked/mock.
-4. Do not build HPR/HFR registration; do one lookup or labelled mock.
-5. Keep UI to a dashboard and mother/child profile tabs.
+## Extension tier (remaining window, in priority order)
+1. Complete and sandbox-verify the M3 encrypted health-information exchange using the official crypto sample (HIU request + HIP push + transfer notification); if blocked, keep the implemented request stage separate from the mocked/pending encrypted-transfer stages.
+2. M2 patient-initiated linking (discover/init/confirm).
+3. M1 extra variants: ABHA address creation, mobile OTP, profile fetch, card.
+4. M4 registration/verification workflows supported by the sandbox.
+5. UI polish on the transaction timeline. Recorded demo video.
+6. `docs/technical-answers.md` and `docs/ai-usage.md` finalised with real examples from the build.
 
-Do not cut:
-- Correct request/callback correlation.
+## Rules when time slips
+Cut depth, never correctness. Do not cut:
+- Request and callback correlation.
 - Durable transaction persistence.
 - Callback deduplication.
 - Consent enforcement before sharing.
-- Secret/identifier redaction.
-- Honest feature status labels.
+- Secret and identifier redaction.
+- Honest status labels.
 
-## First 30-minute checklist
+## Blocker protocol
+If a sandbox prerequisite (credentials, role, callback registration, test data) blocks a workflow for more than 30 minutes:
+1. Record the blocker in `known-issues.md` with the exact error code.
+2. Implement it against fixtures copied from the doc examples.
+3. Label it `IMPLEMENTED_NOT_SANDBOX_TESTED` (real code path, not executed on the sandbox) or `MOCKED` (simulated). Do not use `IMPLEMENTED_NOT_TESTABLE`.
+4. Notify the assignment contact if the blocker needs sandbox configuration from them. The brief invites this.
 
-1. Confirm the sandbox base URL, credentials, CM ID, facility/bridge prerequisites, and enabled M1–M4 APIs.
-2. Confirm whether the sandbox requires public HTTPS callbacks and which callback routes are in scope.
-3. Confirm exact required headers and callback acknowledgement for the first workflow.
-4. Choose the simplest sandbox-supported M1 and M2 paths.
-5. If a prerequisite is missing after 30 minutes, record it and use a labelled mock for that workflow instead of losing the timebox.
 
-## Acceptance criteria at hour 8
+## Prerequisite gate (before milestone coding)
+1. Confirm the exact sandbox tenant/client credentials, CM ID, enabled M1/M2/M3/M4 capabilities and role identifiers.
+2. Confirm whether an HFR Facility ID already exists. M2/M3 facility prerequisites may be met through an existing/manual HFR registration; M4 lookup alone does not create a Facility ID.
+3. Confirm bridge registration/linkage, facility-to-bridge association, role assignment, public callback URL registration and the separate HIU data-push URL requirements.
+4. Confirm an approved sandbox test identity and the permitted OTP delivery/access method. Never substitute real Aadhaar/patient information.
+5. Record every unavailable prerequisite in `known-issues.md` and mark only the affected workflow `PENDING` or `MOCKED`.
 
-- The app starts locally.
-- Staff can complete the mother-to-child demo journey.
-- One M1 path is either sandbox-tested or honestly labelled blocked/mock.
-- One M2 FHIR/care-context example is implemented or its blocker is documented.
-- M3 consent status is visible and invalid consent blocks sharing.
-- M4 lookup or fixture is clearly labelled.
-- Transaction table distinguishes accepted from completed.
-- Callback fixture test verifies persistence, correlation, and duplicate handling.
-- Swagger and a concise limitations/evidence document are included.
+## Retry and timeout rules
+- Retry only documented, idempotent or otherwise safely replayable operations; respect `Retry-After`, use bounded exponential backoff with jitter, and cap attempts.
+- Do not automatically retry OTP, consent creation, or any non-idempotent operation unless the official contract explicitly defines safe replay.
+- For timeout/connection loss after a request may have reached ABDM, reconcile by documented transaction/status lookup or callback before issuing another request.
+- Treat local expiry as a local deadline, not proof of remote failure. Preserve and reconcile late callbacks.

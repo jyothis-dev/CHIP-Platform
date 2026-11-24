@@ -1,39 +1,64 @@
-# Minimum Tests and Evidence — WombTo18
+# Testing and Sandbox Evidence
 
-## Shell checks, 2026-11-24
+## Automated test plan (Jest + Supertest)
 
-`npm test` in `server/` (Prisma mocked, no sandbox): 3 suites, 10 passed, 0 failed, 0 skipped. Jest then forced one worker to exit because a rate-limit timer was still open. The process exit code was 0.
+The rows below are planned cases. The Result column stays `not executed` until a command output is pasted here. Do not describe them as passing merely because they are listed.
 
-Covered: health check up, database down (`DATABASE_UNAVAILABLE`), login success with an access token and no refresh cookie or password hash, wrong password (`INVALID_CREDENTIALS`), error-handler codes, and login rate limiting.
+Shell Jest, executed 2026-11-24 from `server/` with `npm test` (Prisma mocked, not sandbox): 3 suites, 10 passed, 0 failed. Covers health up, database down, login success, wrong password, error-handler codes, and login rate limit. Jest then forced one worker to exit because a rate-limit timer was still open. Exit code was 0. Those cases are not T1–T22.
 
-`npm run build` in `client/` completed.
+| # | Test | Type |
+|---|---|---|
+| T1 | Outbound M2/M3 acceptance sets `ACCEPTED/WAITING_FOR_CALLBACK`, never `COMPLETED`. M1 synchronous success is a separate case and is not executed | Unit |
+| T2 | Matching callback moves the transaction to `COMPLETED` | Integration (fixture) |
+| T3 | Duplicate callback → `DUPLICATE`, processed once, same acknowledgement returned | Integration |
+| T4 | Callback for an unknown transaction → `ORPHANED`, no state change | Integration |
+| T5 | Invalid callback payload → rejected per contract | Integration |
+| T6 | Late callback after local timeout/expiry is persisted and reconciled; no blind reopen or discard | Unit + integration fixture |
+| T7 | Retry only documented safe-to-replay operations; respect `Retry-After`; do not blindly retry OTP/consent creation or ambiguous outcomes | Unit (mocked Axios) |
+| T8 | Token refresh on 401 happens once, then fails cleanly | Unit |
+| T9 | Consent guard: DENIED / EXPIRED / REVOKED / out-of-range HI type / date range each rejected | Unit |
+| T10 | HI request with a valid consent → data released (or mock flagged) | Integration |
+| T11 | FHIR bundle for the child immunization passes validation; a broken bundle fails and blocks linking | Integration |
+| T12 | Log redaction: no OTP/Aadhaar/ABHA/token in serialized logs | Unit |
+| T13 | Facility scope: user from facility A cannot read a facility B patient | Integration |
+| T14 | Idempotency-Key repeat returns the original response | Integration |
+| T15 | Config guard refuses a non-sandbox ABDM URL | Unit |
 
-Staff login is `IMPLEMENTED_NOT_TESTED` against a real database. Password hashing is still bcrypt. The mother-to-child journey and M1–M4 cases below are not implemented.
+Record the test command and the latest results summary (e.g. `npm test -- --coverage`) here before submission.
 
-## Required local journey
-- Staff login.
-- Register mother.
-- Add pregnancy and antenatal visit.
-- Record delivery.
-- Register newborn and link to mother.
-- Add one child follow-up/immunization record.
+## Sandbox evidence log
 
-## Focused integration tests
-1. Outbound request receives acceptance but transaction remains pending.
-2. Matching callback advances transaction to completed.
-3. Duplicate callback is not processed twice.
-4. Unknown transaction callback is safely handled.
-5. Invalid callback payload is rejected according to contract.
-6. Consent denied/expired/revoked blocks health-information sharing.
-7. Sensitive values are redacted from logs.
+One row per sandbox execution. References are masked (e.g. `txn …a91f`). Screenshots are stored in `docs/evidence/` and named `M<n>-<workflow>-<yyyymmdd-hhmm>.png`.
 
-## Evidence labels
-Use one of:
-- `SANDBOX_TESTED`
-- `IMPLEMENTED_NOT_TESTED`
-- `MOCKED`
-- `BLOCKED`
+| Milestone | Workflow | Date/time (IST) | Environment | Masked request/txn ref | Expected | Actual | Label | Evidence |
+|---|---|---|---|---|---|---|---|---|
+| M1 | ABHA creation (Aadhaar OTP) | | sandbox | | ABHA created, masked number shown | | | |
+| M1 | ABHA verification/login | | sandbox | | | | | |
+| M2 | FHIR validation | | local | | VALID | | | |
+| M2 | HIP-initiated link + callback | | sandbox | | LINKED after callback | | | |
+| M2 | HI request handled with consent check | | sandbox | | | | | |
+| M3 | Consent request + status callback | | sandbox | | | | | |
+| M3 | Consent GRANTED / DENIED / REVOKED handling | | sandbox | | | | | |
+| M3 | Health information transfer | | sandbox | | | | | |
+| M4 | HFR lookup | | sandbox | | | | | |
+| M4 | HPR lookup | | sandbox | | | | | |
 
-For each workflow record test date/time, environment, operation, masked transaction reference, expected/actual result, and screenshot/video reference.
+## Evidence rules
+- Synthetic or approved sandbox data only. Never capture Aadhaar, OTP, full ABHA number, tokens, secrets or private keys.
+- Each screenshot shows the UI status label **and** the transaction timeline (accepted → callback → completed), which proves the async handling.
+- Record a 5–8 minute demo video: journey → M1 → M2 → M3 → M4 → transaction monitor → audit log → test run.
 
-Use synthetic data only. Never capture Aadhaar, ABHA identifiers, OTPs, tokens, secrets, private keys, or raw clinical payloads.
+
+## Additional required cases
+| # | Test | Type |
+|---|---|---|
+| T16 | Same `Idempotency-Key` + same request-body hash returns the original safe result | Integration |
+| T17 | Same `Idempotency-Key` + different request-body hash returns conflict and causes no second side effect | Integration |
+| T18 | Callback containing sensitive fields persists only the minimum required encrypted/normalized data; logs remain redacted | Integration |
+| T19 | Callback with no documented unique event ID uses the approved stable dedup strategy; duplicate side effect is prevented | Integration |
+| T20 | Client id, client secret, and callback base URL are read from the process environment, not from a facility row | Integration |
+| T21 | Consent is rechecked at the time of data release; revoked/expired consent cannot pass a stale earlier authorization check | Integration |
+| T22 | Timeout with ambiguous remote outcome triggers reconciliation before any replay | Unit + integration fixture |
+
+## Evidence record template
+For every executed test or sandbox workflow, record: test ID/workflow, execution timestamp (timezone), environment, sanitized transaction/reference ID, result, evidence filename/link, and whether it was sandbox, local integration, unit or mocked. A test plan row is not evidence of execution.

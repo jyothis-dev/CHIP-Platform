@@ -49,7 +49,8 @@ describe('API', () => {
       name: 'Demo Staff',
       email: 'staff@example.com',
       passwordHash,
-      role: 'staff',
+      role: 'STAFF',
+      facilityId: '44444444-4444-4444-8444-444444444444',
     });
 
     const res = await request(app).post('/auth/login').send({
@@ -62,7 +63,7 @@ describe('API', () => {
     expect(res.body.data.user).toMatchObject({
       id: userId,
       email: 'staff@example.com',
-      role: 'staff',
+      role: 'STAFF',
     });
     expect(res.body.data.refreshToken).toBeUndefined();
     expect(res.headers['set-cookie']).toBeUndefined();
@@ -75,7 +76,8 @@ describe('API', () => {
       name: 'Demo Staff',
       email: 'staff@example.com',
       passwordHash,
-      role: 'staff',
+      role: 'STAFF',
+      facilityId: '44444444-4444-4444-8444-444444444444',
     });
 
     const res = await request(app).post('/auth/login').send({

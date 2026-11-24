@@ -13,10 +13,16 @@ async function main() {
   }
 
   const passwordHash = await hashPassword(password);
+  const facilityName = 'Demo Facility';
+  let facility = await prisma.facility.findFirst({ where: { name: facilityName } });
+  if (!facility) {
+    facility = await prisma.facility.create({ data: { name: facilityName } });
+  }
+
   await prisma.user.upsert({
     where: { email },
-    update: { name, passwordHash, role: 'staff' },
-    create: { name, email, passwordHash, role: 'staff' },
+    update: { name, passwordHash, role: 'STAFF', facilityId: facility.id },
+    create: { name, email, passwordHash, role: 'STAFF', facilityId: facility.id },
   });
 }
 

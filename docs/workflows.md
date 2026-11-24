@@ -33,14 +33,14 @@ Requirements:
 
 | # | Workflow | Tier |
 |---|---|---|
-| 2.1 | Build and validate one FHIR bundle for the child immunization | C |
+| 2.1 | Core stores `hiType` and `validationStatus` `UNVERIFIED`. It does not validate against a named FHIR profile and does not link on a profile name. Linking stays `PENDING` until a fetched ABDM page names the profile. | C |
 | 2.2 | HIP-initiated care-context linking + callback | C |
 | 2.3 | Patient-initiated linking: discover → init → confirm callbacks | E |
 | 2.4 | Respond to health-information request: validate consent → encrypt → push → notify | C (encryption may be `MOCKED` if blocked) |
 | 2.5 | Link status visible per care context | C |
 
 Requirements:
-- A care context is linked only if its `HealthRecord` passed FHIR validation.
+- Core does not validate against a named FHIR profile. It stores `hiType` and `validationStatus` `UNVERIFIED` and does not link on a profile name. Linking stays `PENDING` until a fetched ABDM page names the profile.
 - A link is shown as `LINKED` only after the documented completion callback or status.
 - Patient matching for discovery (2.3) uses documented demographic and identifier rules. Ambiguous matches return no match, never a guess.
 - Health-information request handling runs the consent checks listed in `architecture.md` §5 before building any bundle.

@@ -1,8 +1,8 @@
 # Database Schema — WombTo18 ABDM Prototype
 
-This is the **target** schema for implementation. It is not the database that exists today.
+This document matches `server/prisma/schema.prisma`. Migration `20261124000000_wombto18_mvp` created the first tables. Later migrations under `server/prisma/migrations/` add the columns and tables below. Do not edit a migration that has already been applied.
 
-`server/prisma/schema.prisma` and migration `20261124000000_wombto18_mvp` are the login shell only: `User` (bcrypt `passwordHash`, string `role`, no `facilityId`), `Facility`, `Patient`, `Encounter` (`ANTENATAL` / `DELIVERY` / `CHILD_FOLLOW_UP`), `ABHAIdentity` (masked reference and status only), `HealthRecord`, `ConsentRequest`, `ABDMTransaction`, `CallbackEvent`, and `AuditLog`. The shell also has an unused `Pregnancy` model. This build does not add routes or features for it. The shell does not yet have care contexts, consent artefacts, health-information requests, data transfers, or idempotency keys. Replace that schema with a new migration when implementation starts. Do not treat the shell migration as this design.
+`User.passwordHash` stays bcrypt (cost 12). `Pregnancy` includes `lmpDate` and still has no routes. ABHA ciphertext and hash columns are a local shape only. This build does not implement a cipher, an ABDM HTTP client, or a callback handler.
 
 PostgreSQL + Prisma. UUID primary keys. `createdAt` / `updatedAt` on every table except `AuditLog`, which is insert-only and has `createdAt` only. Enums for statuses. Every patient-scoped query filters by `facilityId`.
 
@@ -12,20 +12,20 @@ No `ABDMBridge`, `FacilityBridge`, or `FacilityBridgeRole` table. The current AB
 
 | Model | Key fields | Constraints / notes |
 |---|---|---|
-| `User` | id, name, email, passwordHash, role (`ADMIN` / `CLINICIAN` / `STAFF`), facilityId | email unique. The shell uses bcrypt (cost 12). New password hashes use Argon2id when auth is rebuilt. |
+| `User` | id, name, email, passwordHash, role (`ADMIN` / `CLINICIAN` / `STAFF`), facilityId | email unique. facilityId required. Password hashes stay bcrypt (cost 12). |
 | `Facility` | id, name, hfrId?, hfrVerifiedAt?, hfrStatus | hfrId unique when present. No callback URL and no client secret. |
 | `Practitioner` | id, userId?, name, hprId?, hprVerifiedAt?, facilityId | hprId unique when present. One facility is enough for this demo. No join table. |
 | `Patient` | id, facilityId, patientType (`MOTHER` / `CHILD`), name, gender, dateOfBirth, mobileLast4? | index (facilityId, name) |
 | `MotherChildRelationship` | motherPatientId, childPatientId, relationshipType | unique (mother, child) |
-| `Encounter` | id, patientId, facilityId, practitionerId?, type (`IMMUNIZATION`), occurredAt, notes | Current build uses one immunization encounter. `ANTENATAL` and `DELIVERY` stay unused. The shell enum does not include `IMMUNIZATION` yet. |
-| `Pregnancy` | Not in this build | `PENDING`. Do not add the table until the deferred pregnancy routes are in scope. |
+| `Encounter` | id, patientId, facilityId, practitionerId?, type (`ANTENATAL` / `DELIVERY` / `CHILD_FOLLOW_UP` / `IMMUNIZATION`), occurredAt, notes | `IMMUNIZATION` is a local encounter type. The earlier three values remain. This is not a FHIR profile name. |
+| `Pregnancy` | motherPatientId, lmpDate?, estimatedDueDate?, status, deliveryDate? | The table exists, including `lmpDate`. Pregnancy routes are not in this build. |
 
 ## ABDM — identity and records
 
 | Model | Key fields | Constraints / notes |
 |---|---|---|
-| `ABHAIdentity` | patientId unique, abhaNumberEnc (AES-256-GCM ciphertext including nonce and tag), encKeyVersion, abhaNumberHash (HMAC-SHA256), hashKeyVersion, abhaNumberMasked, abhaAddress?, verificationStatus, verifiedAt? | unique abhaNumberHash. At-rest AES-GCM and HMAC are a local control, not a verified ABDM wire requirement. One address column is enough until fetched M1 docs require address history. No Aadhaar, OTP, or user token. |
-| `HealthRecord` | patientId, encounterId, hiType, fhirProfile?, igVersion?, validationStatus (`VALID` / `INVALID` / `UNVERIFIED`), validationSummary, sourceHash | Profile name and IG version stay empty until fetched. No raw bundle stored. |
+| `ABHAIdentity` | patientId unique, abhaNumberEnc (ciphertext column, including room for a nonce and tag), encKeyVersion, abhaNumberHash, hashKeyVersion, abhaNumberMasked, abhaAddress?, verificationStatus, verifiedAt? | unique abhaNumberHash. The column shape is a local control, not a verified ABDM wire requirement, and no cipher is implemented. One address column is enough until fetched M1 docs require address history. No Aadhaar, OTP, or user token. |
+| `HealthRecord` | patientId, encounterId, hiType, fhirProfile?, igVersion?, validationStatus (`VALID` / `INVALID` / `UNVERIFIED`), validationSummary?, sourceHash? | Profile name and IG version stay empty until fetched. `validationSummary` and `sourceHash` are optional while status is `UNVERIFIED`. No raw bundle stored. |
 | `CareContext` | facilityId, patientId, healthRecordId, referenceNumber, display, linkStatus (`NOT_LINKED` / `LINK_REQUESTED` / `LINKED` / `FAILED`), linkedAt?, transactionId | unique (facilityId, referenceNumber) |
 
 ## ABDM — consent and exchange
@@ -34,7 +34,7 @@ No `ABDMBridge`, `FacilityBridge`, or `FacilityBridgeRole` table. The current AB
 |---|---|---|
 | `ConsentRequest` | patientAbhaAddress, purposeCode, hiTypes[], dateFrom, dateTo, expiresAt, externalConsentRequestId?, status (`REQUESTED` / `GRANTED` / `DENIED` / `EXPIRED` / `REVOKED`), transactionId | index externalConsentRequestId. HIU-side request. |
 | `ConsentArtefact` | role (`HIU` / `HIP`), externalArtefactId, consentRequestId?, patientRef, hipId, hiTypes[], careContextRefs[], dateFrom, dateTo, expiresAt, status, revokedAt? | unique (role, externalArtefactId). Many artefacts may point at one `ConsentRequest`. |
-| `HealthInformationRequest` | role (`HIU` / `HIP`), consentArtefactId, externalTransactionId?, dataPushUrl?, status, keyExpiresAt? | Private keys stay in memory or in a short-TTL encrypted field that is never logged. |
+| `HealthInformationRequest` | role (`HIU` / `HIP`), consentArtefactId, externalTransactionId?, dataPushUrl?, status, keyExpiresAt? | Private keys are not columns. `keyExpiresAt` is the only key-related column. Keys stay in memory and are never logged. |
 | `DataTransfer` | healthInformationRequestId, careContextId, direction (`PUSH` / `RECEIVE`), externalTransferRef?, correlationId?, status, receiptStatus?, receivedAt?, validatedAt?, failureCode?, attempts, nextAttemptAt?, bytes?, mocked | `mocked=true` is `MOCKED` in the UI. |
 
 ## Integration infrastructure

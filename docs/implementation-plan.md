@@ -12,8 +12,8 @@ This is one thin slice, not every workflow in `workflows.md`. Anything else stay
 | 0:45–2:00 | Keep the existing Express and Vite shell. Add the target Prisma migration from `database-schema.md`, Pino redaction, and login against `User`. | `npm test` in `server/` still passes, including login |
 | 2:00–3:15 | Domain slice: one mother, one newborn linked to that mother, one immunization encounter. No pregnancy, antenatal visit, or delivery | Those three records save and show in the UI |
 | 3:15–4:30 | M1: one OTP create or verify path, only if the fetched contract and credentials exist. Otherwise stop and mark `PENDING`. | `SANDBOX_TESTED` only with a sanitized log. Otherwise `PENDING` or `IMPLEMENTED_NOT_SANDBOX_TESTED` |
-| 4:30–6:00 | M2: one HIP-initiated link. Callback path stays blank until fetched. Until then, a fixture posts to the handler. Consent guard returns 403 for denied, expired, and revoked. | Link status is `LINKED` only after the fixture or the real callback |
-| 6:00–7:00 | M3: create a consent row and block the HI request unless status is `GRANTED` and in date. Data-push route exists. Encrypted body handling is `MOCKED` if the crypto page or sandbox is missing. | T21-style check is executed locally, or the gap is written down |
+| 4:30–6:00 | M2: one HIP-initiated link. The callback path stays blank. The fixture hits an internal test handler only. It is not an ABDM route. `evidenceLabel` is `MOCKED`. Do not set `SANDBOX_TESTED`. Do not show `LINKED` as if a sandbox callback arrived. Consent guard returns 403 for denied, expired, and revoked. | Fixture evidence is `MOCKED`. Callback path, ack, and correlation stay blank |
+| 6:00–7:00 | M3: The HIU writes `ConsentRequest` and its own artefact row. The HIP release reads only a `ConsentArtefact` with role `HIP` that a callback stored. The modules do not import each other or share one consent row. Block the HI request unless that HIP artefact status is `GRANTED` and in date. Data-push route exists. Encrypted body handling is `MOCKED` if the crypto page or sandbox is missing. | T21-style check is executed locally, or the gap is written down |
 | 7:00–7:30 | M4: one fetched HFR or HPR call, or `MOCKED` with the missing prerequisite. Do not call a lookup “registration.” | Label matches what ran |
 | 7:30–8:00 | Tests T1–T4, T12, T17, T21 as far as the slice exists. Update traceability. | Executed tests recorded. Unrun rows stay unrun |
 
@@ -47,7 +47,7 @@ If a sandbox prerequisite (credentials, role, callback registration, test data) 
 ## Prerequisite gate (before milestone coding)
 1. Confirm the exact sandbox tenant/client credentials, CM ID, enabled M1/M2/M3/M4 capabilities and role identifiers.
 2. Confirm whether an HFR Facility ID already exists. M2/M3 facility prerequisites may be met through an existing/manual HFR registration; M4 lookup alone does not create a Facility ID.
-3. Confirm bridge registration/linkage, facility-to-bridge association, role assignment, public callback URL registration and the separate HIU data-push URL requirements.
+3. One bridge, client credentials, and `ABDM_CALLBACK_BASE_URL` are environment settings, not facility columns.
 4. Confirm an approved sandbox test identity and the permitted OTP delivery/access method. Never substitute real Aadhaar/patient information.
 5. Record every unavailable prerequisite in `known-issues.md` and mark only the affected workflow `PENDING` or `MOCKED`.
 

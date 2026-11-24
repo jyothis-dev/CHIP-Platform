@@ -1,0 +1,1 @@
+ALTER TYPE "EncounterType" ADD VALUE 'IMMUNIZATION';

@@ -46,7 +46,7 @@ Not in the current build. Status `PENDING`. The demo does not need a pregnancy, 
 
 ## ABDM inbound callback routes
 
-Fill the "Exact path" and "Ack" columns from the official v3 docs (MCP) before implementing. Do not guess them.
+Fill the "Exact path" and "Ack" columns from the official v3 docs (MCP) before implementing. Do not guess them. A local fixture is not an ABDM route and must not be documented as one. Callback path, ack, and correlation cells stay blank.
 
 | Callback purpose | Role | Exact path (from docs) | Ack (from docs) | Correlation field (from docs) | Tier |
 |---|---|---|---|---|---|

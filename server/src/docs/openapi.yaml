@@ -1,0 +1,238 @@
+openapi: 3.0.3
+info:
+  title: WombTo18 CHIP API
+  version: 0.1.0
+  description: |
+    Routes that exist on this server. Planned mother, child, and ABDM routes are not listed until they are implemented.
+    Express paths do not include an /api prefix. The Vite dev server strips /api before proxying.
+servers:
+  - url: http://localhost:8000
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Error:
+      type: object
+      required: [success, code, message]
+      properties:
+        success:
+          type: boolean
+          enum: [false]
+        code:
+          type: string
+        message:
+          type: string
+        requestId:
+          type: string
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              path:
+                type: string
+              message:
+                type: string
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: staff@example.com
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+          description: Staff password. Not shown in examples.
+    StaffUser:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+    LoginData:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          description: Short-lived JWT. Not included as an example value.
+        expiresIn:
+          type: string
+          example: 15m
+        user:
+          $ref: "#/components/schemas/StaffUser"
+    SessionData:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+        accessTtl:
+          type: string
+          example: 15m
+paths:
+  /health:
+    get:
+      summary: Database liveness check
+      responses:
+        "200":
+          description: Database is reachable
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, message, database]
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  message:
+                    type: string
+                    example: OK
+                  database:
+                    type: string
+                    example: up
+        "503":
+          description: Database is unreachable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: DATABASE_UNAVAILABLE
+                message: Database is unreachable
+  /auth/login:
+    post:
+      summary: Staff login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Access token and staff profile
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    $ref: "#/components/schemas/LoginData"
+        "400":
+          description: Email or password failed validation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: VALIDATION_ERROR
+                message: "body.email: Invalid email"
+        "401":
+          description: Unknown email or wrong password
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: INVALID_CREDENTIALS
+                message: Invalid email or password
+        "429":
+          description: Too many login attempts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: RATE_LIMITED
+                message: Too many attempts. Try again later.
+  /auth/logout:
+    post:
+      summary: Staff logout
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Session ended
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      loggedOut:
+                        type: boolean
+                        example: true
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: UNAUTHENTICATED
+                message: Authentication required
+  /auth/me:
+    get:
+      summary: Current staff session
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Staff profile from the access token
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    $ref: "#/components/schemas/SessionData"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: UNAUTHENTICATED
+                message: Authentication required

@@ -5,9 +5,11 @@ alwaysApply: true
 
 # Swagger API documentation
 
-The OpenAPI spec is the backend API contract. A route change is not done until `server/src/docs/openapi.yaml` matches the code. Serve that file with Swagger UI.
+The OpenAPI spec is the backend API contract. A route change is not done until `server/src/docs/openapi.yaml` matches the code.
 
-Update the spec in the same change when you add, change, or remove an endpoint, its auth, validation, status, or response body.
+Do not change the Swagger serving flow. `server/src/docs/swagger.js` reads that file, and `mountSwagger` in `server/src/app.js` serves Swagger UI at `/api-docs` and the document at `/api-docs/openapi.json`. Leave `swagger.js`, those paths, and the `mountSwagger(app)` call as they are.
+
+Update only `openapi.yaml` in the same change when you add, change, or remove an endpoint, its auth, validation, status, or response body.
 
 - Document method, path, summary, path and query parameters, and the request body. Match the Zod schema and the controller, including required fields and status codes (`201` on create, `200` on read).
 - Success body is `{ success: true, data }`. Errors are `{ success: false, code, message }` for `400`, `401`, `403`, `404`, and `409`, using the same `code` the route throws.

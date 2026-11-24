@@ -4,7 +4,7 @@
 
 The rows below are planned cases. The Result column stays `not executed` until a command output is pasted here. Do not describe them as passing merely because they are listed.
 
-Shell Jest, executed 2026-11-24 from `server/` with `npm test` (Prisma mocked, not sandbox): 3 suites, 10 passed, 0 failed. Covers health up, database down, login success, wrong password, error-handler codes, and login rate limit. Jest then forced one worker to exit because a rate-limit timer was still open. Exit code was 0. Those cases are not T1–T22.
+Shell Jest, executed 2026-11-24 from `server/` with `npm test` (Prisma mocked, not sandbox): 5 suites, 15 passed, 0 failed. Includes health, login, wrong password, error-handler codes, login rate limit, and `GET /api-docs/openapi.json` listing only `/health`, `/auth/login`, `/auth/logout`, and `/auth/me`. Exit code was 0. Those cases are not T1–T22.
 
 | # | Test | Type |
 |---|---|---|

@@ -41,7 +41,7 @@ LOG_LEVEL=info
 
 ## Local run
 
-The commands below are the **target** layout. They are not all true of this repo today. There is no Docker Compose file, no `npm run seed`, no `npm run callback:fixture`, no `npm run test:sandbox`, and no Swagger route. The API default port in `server/src/config/env.js` is 3000. Vite proxies `/api` to that port and strips the `/api` prefix. Express routes are mounted without `/api` (`/health`, `/auth`).
+The commands below are the **target** layout. They are not all true of this repo today. There is no Docker Compose file, no `npm run seed`, no `npm run callback:fixture`, no `npm run test:sandbox`, and no Swagger route. The API listens on port 8000 (`PORT` in `server/.env`, default in `server/src/config/env.js`). Vite proxies `/api` to that port and strips the `/api` prefix. Express routes are mounted without `/api` (`/health`, `/auth`). Swagger UI for the routes that exist is `http://localhost:8000/api-docs`. The raw document is `http://localhost:8000/api-docs/openapi.json`.
 
 What works now, from `server/`:
 
@@ -61,7 +61,7 @@ cd server && npm ci && npx prisma migrate deploy && npm run db:seed && npm run d
 cd ../client && npm ci && npm run dev
 ```
 
-Swagger at `/api-docs` is not implemented. Do not document a URL for it until the route exists.
+Swagger UI for implemented routes: `http://localhost:8000/api-docs`.
 
 ## Callbacks
 1. Start the tunnel: `ngrok http 4000` → set `ABDM_CALLBACK_BASE_URL`. Do not invent a second variable name.

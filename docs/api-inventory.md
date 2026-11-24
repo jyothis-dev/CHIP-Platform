@@ -1,6 +1,6 @@
 # API Inventory — WombTo18 ABDM Prototype
 
-All internal routes are documented in Swagger at `/api-docs`. All require a JWT except login and the ABDM callbacks. State-changing routes accept `Idempotency-Key`. Asynchronous internal operations may return `202` with `{ transactionId, status, evidenceLabel }`, and the client may poll `GET /api/transactions/:id`. This is an internal API convention only; do not apply it to synchronous M1 actions or assume it matches ABDM callback acknowledgements.
+All internal routes that are implemented are in `server/src/docs/openapi.yaml`, served at `http://localhost:8000/api-docs`. The spec lists only live Express routes (`/health`, `/auth/login`, `/auth/logout`, `/auth/me`). The table below includes routes that are not built yet. Those stay out of the spec until the handlers exist. State-changing routes accept `Idempotency-Key` once they exist. Asynchronous internal operations may return `202` with `{ transactionId, status, evidenceLabel }`, and the client may poll `GET /api/transactions/:id`. This is an internal API convention only; do not apply it to synchronous M1 actions or assume it matches ABDM callback acknowledgements.
 
 ## Internal routes
 

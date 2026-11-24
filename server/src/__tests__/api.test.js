@@ -89,4 +89,14 @@ describe('API', () => {
     expect(res.body.code).toBe('INVALID_CREDENTIALS');
     expect(JSON.stringify(res.body)).not.toContain(passwordHash);
   });
+
+  it('serves the OpenAPI document for the routes that exist', async () => {
+    const res = await request(app).get('/api-docs/openapi.json');
+
+    expect(res.status).toBe(200);
+    expect(Object.keys(res.body.paths).sort()).toEqual(['/auth/login', '/auth/logout', '/auth/me', '/health']);
+    expect(res.body.paths['/auth/me'].get.security).toEqual([{ bearerAuth: [] }]);
+    expect(res.body.paths['/auth/login'].post.security).toBeUndefined();
+    expect(JSON.stringify(res.body)).not.toMatch(/eyJ/);
+  });
 });

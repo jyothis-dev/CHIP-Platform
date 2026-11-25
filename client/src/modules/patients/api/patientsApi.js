@@ -1,7 +1,13 @@
 import { http } from '@/shared/api/http.js';
 
-export function listPatients({ q } = {}) {
-  return http.get('/patients', { params: q ? { q } : undefined });
+export function listPatients({ q, page = 1, pageSize = 20 } = {}) {
+  return http.get('/patients', {
+    params: {
+      page,
+      pageSize,
+      ...(q ? { q } : {}),
+    },
+  });
 }
 
 export function getPatient(id) {

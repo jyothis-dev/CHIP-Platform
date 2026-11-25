@@ -19,7 +19,9 @@ import {
   Alert,
   Button,
   Field,
+  PAGE_SIZE,
   PageHeader,
+  Pagination,
   Select,
   Spinner,
 } from '@/shared/ui/index.js';
@@ -171,6 +173,7 @@ export default function AbhaEnrolmentPage() {
 
   const [step, setStep] = useState(STEPS.CONSENT);
   const [patientFilter, setPatientFilter] = useState('');
+  const [patientPage, setPatientPage] = useState(1);
   const [patientId, setPatientId] = useState(preselectedId);
   const [consent, setConsent] = useState(emptyConsent);
   const [aadhaar, setAadhaar] = useState('');
@@ -193,7 +196,7 @@ export default function AbhaEnrolmentPage() {
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
 
-  const patientsQuery = usePatients('');
+  const patientsQuery = usePatients(patientFilter.trim(), patientPage);
   const enrolment = useAbhaEnrolment();
 
   useEffect(() => {
@@ -201,15 +204,15 @@ export default function AbhaEnrolmentPage() {
   }, [preselectedId]);
 
   useEffect(() => {
+    setPatientPage(1);
+  }, [patientFilter]);
+
+  useEffect(() => {
     headingRef.current?.focus();
   }, [step]);
 
-  const patients = patientsQuery.data || [];
-  const filteredPatients = useMemo(() => {
-    const q = patientFilter.trim().toLowerCase();
-    if (!q) return patients;
-    return patients.filter((patient) => patient.name.toLowerCase().includes(q));
-  }, [patients, patientFilter]);
+  const patients = patientsQuery.data?.items || [];
+  const patientTotal = patientsQuery.data?.total || 0;
 
   const selectedPatient = useMemo(
     () => patients.find((patient) => patient.id === patientId) || null,
@@ -360,7 +363,10 @@ export default function AbhaEnrolmentPage() {
                 {...a11y}
               >
                 <option value="">Select a patient</option>
-                {filteredPatients.map((patient) => (
+                {patientId && !patients.some((patient) => patient.id === patientId) ? (
+                  <option value={patientId}>Selected patient</option>
+                ) : null}
+                {patients.map((patient) => (
                   <option key={patient.id} value={patient.id}>
                     {patient.name} ({patient.patientType})
                   </option>
@@ -368,6 +374,15 @@ export default function AbhaEnrolmentPage() {
               </Select>
             )}
           </Field>
+          {!patientsQuery.isPending && !patientsQuery.isError && patientTotal > 0 ? (
+            <Pagination
+              page={patientPage}
+              pageSize={PAGE_SIZE}
+              total={patientTotal}
+              disabled={patientsQuery.isFetching}
+              onPageChange={setPatientPage}
+            />
+          ) : null}
           {selectedPatient ? (
             <div className="abha-selected">
               <p>

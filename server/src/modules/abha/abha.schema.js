@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { pageQueryShape } from '../../shared/pagination.js';
 import {
   AADHAAR_INVALID_MESSAGE,
   abhaAddressRules,
@@ -97,6 +98,12 @@ export const createAddressSchema = z.object({
   }),
   params: empty,
   query: empty,
+});
+
+export const listTracesSchema = z.object({
+  body: empty,
+  params: empty,
+  query: z.object(pageQueryShape).optional().default({}),
 });
 
 export const transactionIdParamSchema = z.object({

@@ -8,11 +8,11 @@ All internal routes that are implemented are in `server/src/docs/openapi.yaml`, 
 |---|---|---|---|
 | POST | `/api/auth/login` | Staff login | — |
 | GET | `/api/dashboard` | Counts, pending transactions, recent callbacks | — |
-| GET/POST | `/api/patients` | Search/register mother, child, or general patient (IMPLEMENTED_NOT_SANDBOX_TESTED). Returns `managedBy` staff | — |
+| GET/POST | `/api/patients?q=&page=&pageSize=` | Search/register mother, child, or general patient (IMPLEMENTED_NOT_SANDBOX_TESTED). The list is paged and returns `managedBy` staff | — |
 | GET | `/api/patients/:id` | Profile with managing staff and masked ABHA status (IMPLEMENTED_NOT_SANDBOX_TESTED) | — |
 | POST | `/api/patients/:motherId/children` | Register newborn, link to mother | — |
 | POST | `/api/patients/:id/encounters` | Child follow-up / immunization | — |
-| GET | `/api/abha/traces` | Development log of recent ABHA requests and redacted responses (IMPLEMENTED_NOT_SANDBOX_TESTED). On in development unless `ABDM_TRACE=false` | M1 |
+| GET | `/api/abha/traces?page=&pageSize=` | Paged development log of ABHA requests and redacted responses (IMPLEMENTED_NOT_SANDBOX_TESTED). On in development unless `ABDM_TRACE=false` | M1 |
 | POST | `/api/abha/enrolment/otp` | Start ABHA creation (request OTP) | M1 |
 | POST | `/api/abha/enrolment/verify` | Verify OTP and enrol | M1 |
 | POST | `/api/abha/login/otp` | Start ABHA verification/login | M1 |
@@ -32,7 +32,7 @@ All internal routes that are implemented are in `server/src/docs/openapi.yaml`, 
 | POST | `/api/facilities/:id/hfr-link` | Attach verified HFR ID | M4 |
 | POST | `/api/practitioners/:id/hpr-link` | Attach verified HPR ID | M4 |
 | GET | `/api/transactions` / `/api/transactions/:id` | Transaction monitor and timeline | All |
-| GET | `/api/audit?action=&resourceType=&resourceId=&outcome=&from=&to=&limit=` | Facility activity log with human-readable `message` (IMPLEMENTED_NOT_SANDBOX_TESTED) | All |
+| GET | `/api/audit?action=&resourceType=&resourceId=&outcome=&from=&to=&page=&pageSize=` | Paged facility activity log with human-readable `message` (IMPLEMENTED_NOT_SANDBOX_TESTED) | All |
 | GET | `/health` | Liveness and DB check | — |
 
 ## Deferred routes

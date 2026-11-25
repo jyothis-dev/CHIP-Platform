@@ -4,6 +4,8 @@ export async function list(req, res) {
   const data = await patientsService.listPatients({
     facilityId: req.auth.facilityId,
     q: req.validated.query?.q,
+    page: req.validated.query?.page,
+    pageSize: req.validated.query?.pageSize,
   });
   res.status(200).json({ success: true, data });
 }

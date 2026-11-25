@@ -46,6 +46,7 @@ describe('ABHA traffic when tracing is on', () => {
   });
 
   it('returns the newest redacted ABHA calls', async () => {
+    prismaMock.abdmTrace.count.mockResolvedValue(41);
     prismaMock.abdmTrace.findMany.mockResolvedValue([{
       id: 'trace-1',
       method: 'POST',
@@ -65,12 +66,44 @@ describe('ABHA traffic when tracing is on', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(res.body.data).toHaveLength(1);
-    expect(res.body.data[0].status).toBe(400);
-    expect(res.body.data[0].responseBody.message).toBe('Invalid LoginId');
+    expect(res.body.data.items).toHaveLength(1);
+    expect(res.body.data.page).toBe(1);
+    expect(res.body.data.total).toBe(41);
+    expect(res.body.data.items[0].status).toBe(400);
+    expect(res.body.data.items[0].responseBody.message).toBe('Invalid LoginId');
     expect(prismaMock.abdmTrace.findMany).toHaveBeenCalledWith(expect.objectContaining({
       orderBy: { createdAt: 'desc' },
-      take: 50,
+      skip: 0,
+      take: 20,
     }));
+  });
+
+  it('returns the requested page of traces', async () => {
+    prismaMock.abdmTrace.count.mockResolvedValue(41);
+    prismaMock.abdmTrace.findMany.mockResolvedValue([]);
+
+    const res = await request(app)
+      .get('/abha/traces')
+      .query({ page: '3', pageSize: '10' })
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.page).toBe(3);
+    expect(res.body.data.pageSize).toBe(10);
+    expect(prismaMock.abdmTrace.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      skip: 20,
+      take: 10,
+    }));
+  });
+
+  it('returns 400 when the page is not a positive integer', async () => {
+    const res = await request(app)
+      .get('/abha/traces')
+      .query({ page: '0' })
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe('VALIDATION_ERROR');
+    expect(prismaMock.abdmTrace.findMany).not.toHaveBeenCalled();
   });
 });

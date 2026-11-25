@@ -1,3 +1,4 @@
+import { pageBody } from '../../shared/pagination.js';
 import { env } from '../../config/env.js';
 import { AppError } from '../../shared/errors.js';
 import { logAudit } from '../../shared/audit.js';
@@ -151,16 +152,18 @@ export async function saveRecord({
   };
 }
 
-export async function listRecords(patientId, facilityId) {
+export async function listRecords(patientId, facilityId, page = 1, pageSize = 20) {
   const demographics = await demographicsForHipLink({ patientId, facilityId });
-  const contexts = await repo.listCareContexts(patientId);
-  const visits = contexts.length;
-  const documents = contexts.filter((row) => row.healthRecordId).length;
-  const notFindable = contexts.filter((row) => row.linkStatus !== 'LINKED' && row.healthRecord?.validationStatus === 'VALID').length;
+  const [visits, documents, notFindable, contexts] = await Promise.all([
+    repo.countCareContexts(patientId),
+    repo.countDocuments(patientId),
+    repo.countNotFindable(patientId),
+    repo.listCareContextPage(patientId, page, pageSize),
+  ]);
   return {
     patientId,
     counts: { visits, documents, notFindable },
-    careContexts: contexts.map((row) => ({
+    careContexts: pageBody(contexts.map((row) => ({
       id: row.id,
       referenceNumber: row.referenceNumber,
       display: row.display,
@@ -171,7 +174,7 @@ export async function listRecords(patientId, facilityId) {
       sourceHash: row.healthRecord?.sourceHash || null,
       byteLength: row.healthRecord?.bundleBytes || null,
       fhirProfile: row.healthRecord?.fhirProfile || null,
-    })),
+    })), page, pageSize, visits),
     abhaVerified: demographics.verified,
   };
 }

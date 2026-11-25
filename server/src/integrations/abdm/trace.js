@@ -2,6 +2,7 @@ import { env } from '../../config/env.js';
 import { AppError } from '../../shared/errors.js';
 import { logger } from '../../shared/logger.js';
 import prisma from '../../shared/prisma.js';
+import { pageBody, pageSlice } from '../../shared/pagination.js';
 import { redactDeep } from '../../shared/redact.js';
 
 function jsonBody(value) {
@@ -33,12 +34,16 @@ export async function recordAbdmTrace(entry) {
   }
 }
 
-export async function listAbdmTraces(limit = 50) {
+export async function listAbdmTraces({ page = 1, pageSize = 20 } = {}) {
   if (!env.abdmTraceEnabled) {
     throw new AppError(404, 'TRACE_DISABLED', 'ABHA traffic tracing is off');
   }
-  return prisma.abdmTrace.findMany({
-    orderBy: { createdAt: 'desc' },
-    take: limit,
-  });
+  const [total, items] = await Promise.all([
+    prisma.abdmTrace.count(),
+    prisma.abdmTrace.findMany({
+      orderBy: { createdAt: 'desc' },
+      ...pageSlice(page, pageSize),
+    }),
+  ]);
+  return pageBody(items, page, pageSize, total);
 }

@@ -5,7 +5,9 @@ import {
   Alert,
   Button,
   EmptyState,
+  PAGE_SIZE,
   PageHeader,
+  Pagination,
   Spinner,
   Table,
 } from '@/shared/ui/index.js';
@@ -26,9 +28,11 @@ function pretty(value) {
 
 export default function AbhaTrafficPage() {
   const { user } = useAuth();
-  const tracesQuery = useAbhaTraces();
+  const [page, setPage] = useState(1);
+  const tracesQuery = useAbhaTraces(page, PAGE_SIZE);
   const [selectedId, setSelectedId] = useState(null);
-  const rows = tracesQuery.data || [];
+  const rows = tracesQuery.data?.items || [];
+  const total = tracesQuery.data?.total || 0;
   const selected = rows.find((row) => row.id === selectedId) || null;
   const disabled = tracesQuery.error?.code === 'TRACE_DISABLED';
 
@@ -76,6 +80,18 @@ export default function AbhaTrafficPage() {
               </tr>
             ))}
           </Table>
+        ) : null}
+        {!tracesQuery.isPending && !tracesQuery.isError && total > 0 ? (
+          <Pagination
+            page={page}
+            pageSize={PAGE_SIZE}
+            total={total}
+            disabled={tracesQuery.isFetching}
+            onPageChange={(next) => {
+              setSelectedId(null);
+              setPage(next);
+            }}
+          />
         ) : null}
       </div>
 

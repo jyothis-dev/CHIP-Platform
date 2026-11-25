@@ -11,7 +11,8 @@ export async function list(req, res) {
     outcome: query.outcome,
     from: query.from,
     to: query.to,
-    limit: query.limit,
+    page: query.page,
+    pageSize: query.pageSize,
   });
   res.status(200).json({ success: true, data });
 }

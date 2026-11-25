@@ -13,6 +13,10 @@
   gap: 6px;
 }
 
+.hip-field select {
+  width: 100%;
+}
+
 .hip-preview {
   background: var(--surface);
   border: 1px solid var(--border);

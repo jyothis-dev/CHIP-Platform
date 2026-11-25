@@ -1,3 +1,4 @@
+import { pageBody } from '../../shared/pagination.js';
 import { AppError } from '../../shared/errors.js';
 import { logAudit } from '../../shared/audit.js';
 import { encryptAbhaNumberAtRest, hashMobile } from '../abha/abha.crypto.js';
@@ -51,9 +52,9 @@ async function requireFacilityPatient(patientId, facilityId) {
   return patient;
 }
 
-export async function listPatients({ facilityId, q }) {
-  const rows = await repo.listPatients({ facilityId, q });
-  return rows.map(toPatientView);
+export async function listPatients({ facilityId, q, page = 1, pageSize = 20 }) {
+  const { items, total } = await repo.listPatients({ facilityId, q, page, pageSize });
+  return pageBody(items.map(toPatientView), page, pageSize, total);
 }
 
 export async function getPatient({ patientId, facilityId }) {

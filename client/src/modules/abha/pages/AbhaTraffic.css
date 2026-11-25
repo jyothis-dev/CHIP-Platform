@@ -8,6 +8,8 @@
 
 .trace-table-wrap {
   overflow-x: auto;
+  display: grid;
+  gap: 12px;
 }
 
 .trace-row {

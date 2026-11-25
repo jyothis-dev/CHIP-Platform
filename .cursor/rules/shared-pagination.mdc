@@ -1,0 +1,40 @@
+---
+description: Reuse the shared list pagination on every paged section
+alwaysApply: true
+---
+
+# Shared pagination
+
+Every list that can grow uses one pager and one page contract. Do not add a second pager, a "load more" control, or a local `limit` on a new screen.
+
+## Client
+
+Import `Pagination` and `PAGE_SIZE` from `@/shared/ui`. Pass `page`, `pageSize`, `total`, and `onPageChange`. Hide the pager when `total` is 0.
+
+```jsx
+// ❌ BAD — a private pager or a fixed slice
+const rows = data.slice(0, 50);
+<button type="button" onClick={() => setPage(page + 1)}>Next</button>
+
+// ✅ GOOD
+import { PAGE_SIZE, Pagination } from '@/shared/ui/index.js';
+
+<Pagination
+  page={page}
+  pageSize={PAGE_SIZE}
+  total={total}
+  disabled={query.isFetching}
+  onPageChange={setPage}
+/>
+```
+
+Reset `page` to 1 when the filters change. A dropdown that chooses from a long list uses the same component under the control.
+
+## Server
+
+Build the query with `pageQueryShape`, `pageSlice`, and `pageBody` from `server/src/shared/pagination.js`. The success body stays `{ success: true, data }`, and `data` is `{ items, page, pageSize, total }`.
+
+- Default page size is 20. The maximum is 100.
+- `page` starts at 1. `page` below 1 or `pageSize` outside 1–100 is `400` `VALIDATION_ERROR`.
+- Count the full filter, then `skip` / `take` that page. Do not page a query that another workflow needs in full, such as discovery of every care context.
+- Document `page` and `pageSize` on the OpenAPI path in the same change.

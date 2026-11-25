@@ -1,0 +1,26 @@
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pager-status,
+.pager-page {
+  margin: 0;
+  color: var(--muted);
+}
+
+.pager-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+@media (max-width: 1024px) {
+  .pager {
+    justify-content: flex-start;
+  }
+}

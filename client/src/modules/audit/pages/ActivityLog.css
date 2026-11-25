@@ -22,6 +22,8 @@
 
 .activity-table-wrap {
   overflow-x: auto;
+  display: grid;
+  gap: 12px;
 }
 
 .activity-message {

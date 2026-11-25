@@ -2,7 +2,8 @@ import { http } from '@/shared/api/http.js';
 
 export function listAudit(filters = {}) {
   const params = {
-    limit: filters.limit ?? 100,
+    page: filters.page ?? 1,
+    pageSize: filters.pageSize ?? 20,
   };
   if (filters.action) params.action = filters.action;
   if (filters.resourceType) params.resourceType = filters.resourceType;

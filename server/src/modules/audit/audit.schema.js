@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { pageQueryShape } from '../../shared/pagination.js';
 
 export const listAuditSchema = z.object({
   body: z.object({}).optional().default({}),
@@ -11,6 +12,6 @@ export const listAuditSchema = z.object({
     outcome: z.enum(['success', 'denied', 'failure']).optional(),
     from: z.string().datetime().optional(),
     to: z.string().datetime().optional(),
-    limit: z.coerce.number().int().min(1).max(200).optional().default(50),
+    ...pageQueryShape,
   }).optional().default({}),
 });

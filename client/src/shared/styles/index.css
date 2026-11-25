@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light;
   --bg: #f3f1ea;
   --surface: #fffdf8;
   --text: #1e2a24;
@@ -18,6 +19,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
+    color-scheme: dark;
     --bg: #141a17;
     --surface: #1d2622;
     --text: #e8f2ec;
@@ -80,11 +82,17 @@ button, input, select {
   font-size: 0.92rem;
 }
 
-.field input, .field select {
+.field input, .field select, select {
   border: 1px solid var(--border);
   background: var(--surface);
+  color: var(--text);
   border-radius: 6px;
   padding: 8px 10px;
+}
+
+select option {
+  background: var(--surface);
+  color: var(--text);
 }
 
 .card {

@@ -1,4 +1,5 @@
 import prisma from '../../shared/prisma.js';
+import { pageSlice } from '../../shared/pagination.js';
 
 const managedBySelect = {
   id: true,
@@ -18,18 +19,23 @@ const patientInclude = {
   },
 };
 
-export async function listPatients({ facilityId, q, take = 100 }) {
-  return prisma.patient.findMany({
-    where: {
-      facilityId,
-      ...(q
-        ? { name: { contains: q, mode: 'insensitive' } }
-        : {}),
-    },
-    include: patientInclude,
-    orderBy: [{ name: 'asc' }, { createdAt: 'desc' }],
-    take,
-  });
+export async function listPatients({ facilityId, q, page = 1, pageSize = 20 }) {
+  const where = {
+    facilityId,
+    ...(q
+      ? { name: { contains: q, mode: 'insensitive' } }
+      : {}),
+  };
+  const [total, items] = await Promise.all([
+    prisma.patient.count({ where }),
+    prisma.patient.findMany({
+      where,
+      include: patientInclude,
+      orderBy: [{ name: 'asc' }, { createdAt: 'desc' }],
+      ...pageSlice(page, pageSize),
+    }),
+  ]);
+  return { items, total };
 }
 
 export async function findMatchingPatient({

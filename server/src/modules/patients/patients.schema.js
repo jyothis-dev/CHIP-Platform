@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { pageQueryShape } from '../../shared/pagination.js';
 
 const patientTypeEnum = z.enum(['MOTHER', 'CHILD', 'GENERAL']);
 const genderEnum = z.enum(['M', 'F', 'O']);
@@ -8,6 +9,7 @@ export const listPatientsSchema = z.object({
   params: z.object({}).optional().default({}),
   query: z.object({
     q: z.string().trim().max(120).optional(),
+    ...pageQueryShape,
   }).optional().default({}),
 });
 

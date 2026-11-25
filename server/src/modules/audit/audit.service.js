@@ -1,4 +1,5 @@
 import prisma from '../../shared/prisma.js';
+import { pageBody, pageSlice } from '../../shared/pagination.js';
 
 export async function listAuditLogs({
   facilityId,
@@ -9,39 +10,44 @@ export async function listAuditLogs({
   outcome,
   from,
   to,
-  limit = 50,
+  page = 1,
+  pageSize = 20,
 }) {
-  const rows = await prisma.auditLog.findMany({
-    where: {
-      facilityId,
-      ...(action ? { action } : {}),
-      ...(resourceType ? { resourceType } : {}),
-      ...(resourceId ? { resourceId } : {}),
-      ...(actorId ? { actorId } : {}),
-      ...(outcome ? { outcome } : {}),
-      ...((from || to)
-        ? {
-          createdAt: {
-            ...(from ? { gte: new Date(from) } : {}),
-            ...(to ? { lte: new Date(to) } : {}),
+  const where = {
+    facilityId,
+    ...(action ? { action } : {}),
+    ...(resourceType ? { resourceType } : {}),
+    ...(resourceId ? { resourceId } : {}),
+    ...(actorId ? { actorId } : {}),
+    ...(outcome ? { outcome } : {}),
+    ...((from || to)
+      ? {
+        createdAt: {
+          ...(from ? { gte: new Date(from) } : {}),
+          ...(to ? { lte: new Date(to) } : {}),
+        },
+      }
+      : {}),
+  };
+  const [total, rows] = await Promise.all([
+    prisma.auditLog.count({ where }),
+    prisma.auditLog.findMany({
+      where,
+      include: {
+        actor: {
+          select: {
+            id: true,
+            name: true,
+            role: true,
           },
-        }
-        : {}),
-    },
-    include: {
-      actor: {
-        select: {
-          id: true,
-          name: true,
-          role: true,
         },
       },
-    },
-    orderBy: { createdAt: 'desc' },
-    take: limit,
-  });
+      orderBy: { createdAt: 'desc' },
+      ...pageSlice(page, pageSize),
+    }),
+  ]);
 
-  return rows.map((row) => ({
+  const items = rows.map((row) => ({
     id: row.id,
     action: row.action,
     resourceType: row.resourceType,
@@ -59,4 +65,6 @@ export async function listAuditLogs({
       }
       : null,
   }));
+
+  return pageBody(items, page, pageSize, total);
 }

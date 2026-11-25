@@ -823,9 +823,22 @@ paths:
           schema:
             type: string
           description: Optional name search
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
       responses:
         "200":
-          description: Facility-scoped patient list
+          description: One page of facility-scoped patients
           content:
             application/json:
               schema:
@@ -836,9 +849,29 @@ paths:
                     type: boolean
                     enum: [true]
                   data:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/PatientView"
+                    type: object
+                    required: [items, page, pageSize, total]
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/PatientView"
+                      page:
+                        type: integer
+                      pageSize:
+                        type: integer
+                      total:
+                        type: integer
+        "400":
+          description: Invalid page or page size
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: VALIDATION_ERROR
+                message: "query.page: Too small"
         "401":
           description: Authentication required
           content:
@@ -994,12 +1027,27 @@ paths:
   /abha/traces:
     get:
       summary: Recent ABHA request and response traces
-      description: Available when ABDM_TRACE is on, and by default in development. Bodies are redacted.
+      description: Available when ABDM_TRACE is on, and by default in development. Bodies are redacted. Results are paged, newest first.
       security:
         - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10000
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
       responses:
         "200":
-          description: Newest ABHA calls, up to 50
+          description: One page of ABHA calls, newest first
           content:
             application/json:
               schema:
@@ -1010,9 +1058,29 @@ paths:
                     type: boolean
                     enum: [true]
                   data:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/AbdmTraceEntry"
+                    type: object
+                    required: [items, page, pageSize, total]
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/AbdmTraceEntry"
+                      page:
+                        type: integer
+                      pageSize:
+                        type: integer
+                      total:
+                        type: integer
+        "400":
+          description: Invalid page or page size
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: VALIDATION_ERROR
+                message: "query.page: Too small"
         "401":
           description: Authentication required
           content:
@@ -1072,16 +1140,23 @@ paths:
           schema:
             type: string
             format: date-time
-        - name: limit
+        - name: page
           in: query
           schema:
             type: integer
             minimum: 1
-            maximum: 200
-            default: 50
+            maximum: 10000
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
       responses:
         "200":
-          description: Facility-scoped audit entries with human-readable messages
+          description: One page of facility-scoped audit entries with human-readable messages
           content:
             application/json:
               schema:
@@ -1092,9 +1167,29 @@ paths:
                     type: boolean
                     enum: [true]
                   data:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/AuditLogEntry"
+                    type: object
+                    required: [items, page, pageSize, total]
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/AuditLogEntry"
+                      page:
+                        type: integer
+                      pageSize:
+                        type: integer
+                      total:
+                        type: integer
+        "400":
+          description: Invalid page or page size
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: VALIDATION_ERROR
+                message: "query.page: Too small"
         "401":
           description: Authentication required
           content:
@@ -1135,9 +1230,32 @@ paths:
           schema:
             type: string
             format: uuid
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
       responses:
         "200":
-          description: Visit counts and link status
+          description: Visit counts and one page of care contexts
+        "400":
+          description: Invalid page or page size
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: VALIDATION_ERROR
+                message: "query.page: Too small"
         "401":
           description: Authentication required
           content:
@@ -1229,9 +1347,33 @@ paths:
       summary: M2 calls and callbacks grouped by request id
       security:
         - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
       responses:
         "200":
-          description: Exchange timeline. Header values are not included.
+          description: One page of the exchange timeline. Header values are not included.
+        "400":
+          description: Invalid page or page size
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: VALIDATION_ERROR
+                message: "query.page: Too small"
         "401":
           description: Authentication required
           content:

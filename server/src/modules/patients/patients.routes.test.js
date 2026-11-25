@@ -169,6 +169,7 @@ describe('patients routes', () => {
   });
 
   it('lists patients for the staff facility', async () => {
+    prismaMock.patient.count.mockResolvedValue(1);
     prismaMock.patient.findMany.mockResolvedValue([{
       id: patientId,
       facilityId,
@@ -187,10 +188,15 @@ describe('patients routes', () => {
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.data).toHaveLength(1);
-    expect(res.body.data[0].managedBy.name).toBe('Demo Staff');
+    expect(res.body.data.items).toHaveLength(1);
+    expect(res.body.data.page).toBe(1);
+    expect(res.body.data.pageSize).toBe(20);
+    expect(res.body.data.total).toBe(1);
+    expect(res.body.data.items[0].managedBy.name).toBe('Demo Staff');
     expect(prismaMock.patient.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ facilityId }),
+      skip: 0,
+      take: 20,
     }));
   });
 

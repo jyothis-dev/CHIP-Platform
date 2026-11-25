@@ -1,4 +1,5 @@
 import prisma from '../../shared/prisma.js';
+import { pageSlice } from '../../shared/pagination.js';
 
 export function createTransaction(data) {
   return prisma.aBDMTransaction.create({ data });
@@ -51,11 +52,40 @@ export function updateCareContext(id, data) {
   return prisma.careContext.update({ where: { id }, data });
 }
 
+export function countCareContexts(patientId) {
+  return prisma.careContext.count({ where: { patientId } });
+}
+
+export function countDocuments(patientId) {
+  return prisma.careContext.count({
+    where: { patientId, healthRecordId: { not: null } },
+  });
+}
+
+export function countNotFindable(patientId) {
+  return prisma.careContext.count({
+    where: {
+      patientId,
+      linkStatus: { not: 'LINKED' },
+      healthRecord: { validationStatus: 'VALID' },
+    },
+  });
+}
+
 export function listCareContexts(patientId) {
   return prisma.careContext.findMany({
     where: { patientId },
     include: { healthRecord: true, encounter: true },
     orderBy: { createdAt: 'desc' },
+  });
+}
+
+export function listCareContextPage(patientId, page = 1, pageSize = 20) {
+  return prisma.careContext.findMany({
+    where: { patientId },
+    include: { healthRecord: true, encounter: true },
+    orderBy: { createdAt: 'desc' },
+    ...pageSlice(page, pageSize),
   });
 }
 
@@ -124,11 +154,15 @@ export function createTransfer(data) {
   return prisma.dataTransfer.create({ data });
 }
 
-export function listExchanges(facilityId) {
+export function countExchanges() {
+  return prisma.aBDMTransaction.count({ where: { milestone: 'M2' } });
+}
+
+export function listExchanges(facilityId, page = 1, pageSize = 20) {
   return prisma.aBDMTransaction.findMany({
     where: { milestone: 'M2' },
     orderBy: { createdAt: 'desc' },
-    take: 50,
+    ...pageSlice(page, pageSize),
     include: {
       callbackEvents: { orderBy: { receivedAt: 'asc' } },
       careContexts: { where: { facilityId } },

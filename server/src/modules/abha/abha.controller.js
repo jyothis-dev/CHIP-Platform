@@ -11,8 +11,12 @@ function ctx(req) {
   };
 }
 
-export async function listTraces(_req, res) {
-  const data = await listAbdmTraces(50);
+export async function listTraces(req, res) {
+  const query = req.validated?.query || {};
+  const data = await listAbdmTraces({
+    page: query.page,
+    pageSize: query.pageSize,
+  });
   res.status(200).json({ success: true, data });
 }
 

@@ -9,7 +9,9 @@ import {
   Button,
   EmptyState,
   Field,
+  PAGE_SIZE,
   PageHeader,
+  Pagination,
   Select,
   Spinner,
   Table,
@@ -38,13 +40,14 @@ export default function PatientsPage() {
   const navigate = useNavigate();
   const [searchInput, setSearchInput] = useState('');
   const [appliedQuery, setAppliedQuery] = useState('');
+  const [page, setPage] = useState(1);
   const [form, setForm] = useState(emptyForm);
   const [fieldErrors, setFieldErrors] = useState({});
   const [selected, setSelected] = useState(null);
   const [formError, setFormError] = useState('');
   const [match, setMatch] = useState(null);
 
-  const patientsQuery = usePatients(appliedQuery);
+  const patientsQuery = usePatients(appliedQuery, page);
   const createPatient = useCreatePatient();
 
   const filteredHint = useMemo(
@@ -95,7 +98,8 @@ export default function PatientsPage() {
     register(false);
   }
 
-  const patients = patientsQuery.data || [];
+  const patients = patientsQuery.data?.items || [];
+  const patientTotal = patientsQuery.data?.total || 0;
 
   return (
     <section className="patients stack">
@@ -208,6 +212,7 @@ export default function PatientsPage() {
             className="row"
             onSubmit={(event) => {
               event.preventDefault();
+              setPage(1);
               setAppliedQuery(searchInput.trim());
             }}
           >
@@ -257,6 +262,15 @@ export default function PatientsPage() {
               </tr>
             ))}
           </Table>
+        ) : null}
+        {!patientsQuery.isPending && !patientsQuery.isError && patientTotal > 0 ? (
+          <Pagination
+            page={page}
+            pageSize={PAGE_SIZE}
+            total={patientTotal}
+            disabled={patientsQuery.isFetching}
+            onPageChange={setPage}
+          />
         ) : null}
       </div>
 

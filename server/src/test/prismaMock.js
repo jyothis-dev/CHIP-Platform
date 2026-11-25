@@ -5,6 +5,7 @@ function model() {
     findUnique: jest.fn(),
     findFirst: jest.fn(),
     findMany: jest.fn(),
+    count: jest.fn(),
     create: jest.fn(),
     createMany: jest.fn(),
     update: jest.fn(),

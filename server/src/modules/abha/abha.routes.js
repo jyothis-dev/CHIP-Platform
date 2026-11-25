@@ -4,6 +4,7 @@ import { authenticate } from '../../middleware/authenticate.js';
 import { validate } from '../../middleware/validate.js';
 import * as abhaController from './abha.controller.js';
 import {
+  listTracesSchema,
   requestOtpSchema,
   verifyOtpSchema,
   verifyMobileSchema,
@@ -15,7 +16,7 @@ const router = Router();
 
 router.use(authenticate);
 
-router.get('/traces', asyncHandler(abhaController.listTraces));
+router.get('/traces', validate(listTracesSchema), asyncHandler(abhaController.listTraces));
 router.post('/enrolment/otp', validate(requestOtpSchema), asyncHandler(abhaController.requestOtp));
 router.post('/enrolment/verify', validate(verifyOtpSchema), asyncHandler(abhaController.verifyOtp));
 router.post('/enrolment/mobile/verify', validate(verifyMobileSchema), asyncHandler(abhaController.verifyMobile));

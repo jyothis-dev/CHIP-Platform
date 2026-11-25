@@ -5,9 +5,12 @@ import { createQueryClient } from '@/shared/lib/queryClient.js';
 import { usePatients } from './usePatients.js';
 
 vi.mock('../api/patientsApi.js', () => ({
-  listPatients: vi.fn(async () => ([
-    { id: 'p1', name: 'Demo Mother', patientType: 'MOTHER' },
-  ])),
+  listPatients: vi.fn(async () => ({
+    items: [{ id: 'p1', name: 'Demo Mother', patientType: 'MOTHER' }],
+    page: 1,
+    pageSize: 20,
+    total: 1,
+  })),
   createPatient: vi.fn(),
   getPatient: vi.fn(),
 }));
@@ -21,7 +24,7 @@ describe('usePatients', () => {
   it('loads the patient list', async () => {
     const { result } = renderHook(() => usePatients(''), { wrapper });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data).toHaveLength(1);
-    expect(result.current.data[0].name).toBe('Demo Mother');
+    expect(result.current.data.items).toHaveLength(1);
+    expect(result.current.data.items[0].name).toBe('Demo Mother');
   });
 });

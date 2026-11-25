@@ -6,7 +6,9 @@ import {
   Button,
   EmptyState,
   Field,
+  PAGE_SIZE,
   PageHeader,
+  Pagination,
   Select,
   Spinner,
   Table,
@@ -17,7 +19,6 @@ const emptyFilters = {
   action: '',
   resourceType: '',
   outcome: '',
-  limit: 100,
 };
 
 const columns = [
@@ -33,8 +34,10 @@ export default function ActivityLogPage() {
   const { user } = useAuth();
   const [draft, setDraft] = useState(emptyFilters);
   const [filters, setFilters] = useState(emptyFilters);
-  const logQuery = useActivityLog(filters);
-  const rows = logQuery.data || [];
+  const [page, setPage] = useState(1);
+  const logQuery = useActivityLog({ ...filters, page, pageSize: PAGE_SIZE });
+  const rows = logQuery.data?.items || [];
+  const total = logQuery.data?.total || 0;
 
   return (
     <section className="activity stack">
@@ -49,7 +52,8 @@ export default function ActivityLogPage() {
         className="card row activity-filters"
         onSubmit={(event) => {
           event.preventDefault();
-          setFilters({ ...draft, limit: 100 });
+          setPage(1);
+          setFilters({ ...draft });
         }}
       >
         <Field label="Action">
@@ -121,6 +125,15 @@ export default function ActivityLogPage() {
               </tr>
             ))}
           </Table>
+        ) : null}
+        {!logQuery.isPending && !logQuery.isError && total > 0 ? (
+          <Pagination
+            page={page}
+            pageSize={PAGE_SIZE}
+            total={total}
+            disabled={logQuery.isFetching}
+            onPageChange={setPage}
+          />
         ) : null}
       </div>
     </section>

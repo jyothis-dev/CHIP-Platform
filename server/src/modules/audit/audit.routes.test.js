@@ -53,6 +53,7 @@ describe('audit routes', () => {
   });
 
   it('lists facility audit rows including message', async () => {
+    prismaMock.auditLog.count.mockResolvedValue(1);
     prismaMock.auditLog.findMany.mockResolvedValue([{
       id: 'audit-1',
       action: 'auth.login',
@@ -71,10 +72,15 @@ describe('audit routes', () => {
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.data).toHaveLength(1);
-    expect(res.body.data[0].message).toBe('Staff Demo Staff logged in successfully.');
+    expect(res.body.data.items).toHaveLength(1);
+    expect(res.body.data.page).toBe(1);
+    expect(res.body.data.pageSize).toBe(20);
+    expect(res.body.data.total).toBe(1);
+    expect(res.body.data.items[0].message).toBe('Staff Demo Staff logged in successfully.');
     expect(prismaMock.auditLog.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ facilityId }),
+      skip: 0,
+      take: 20,
     }));
   });
 
@@ -83,7 +89,7 @@ describe('audit routes', () => {
 
     const res = await request(app)
       .get('/audit')
-      .query({ action: 'patient.create', outcome: 'success', limit: '10' })
+      .query({ action: 'patient.create', outcome: 'success', page: '2', pageSize: '10' })
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
@@ -93,10 +99,22 @@ describe('audit routes', () => {
         action: 'patient.create',
         outcome: 'success',
       }),
+      skip: 10,
       take: 10,
     }));
     expect(prismaMock.auditLog.findMany).not.toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ facilityId: otherFacilityId }),
     }));
+  });
+
+  it('returns 400 when the page is not a positive integer', async () => {
+    const res = await request(app)
+      .get('/audit')
+      .query({ page: '0' })
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe('VALIDATION_ERROR');
+    expect(prismaMock.auditLog.findMany).not.toHaveBeenCalled();
   });
 });

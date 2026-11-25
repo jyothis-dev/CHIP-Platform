@@ -1,3 +1,4 @@
+import { pageBody } from '../../shared/pagination.js';
 import * as records from './records.js';
 import * as readiness from './readiness.js';
 import * as repo from './hip.repository.js';
@@ -20,7 +21,12 @@ export async function createRecord(req, res) {
 }
 
 export async function listRecords(req, res) {
-  const data = await records.listRecords(req.validated.params.id, req.auth.facilityId);
+  const data = await records.listRecords(
+    req.validated.params.id,
+    req.auth.facilityId,
+    req.validated.query?.page,
+    req.validated.query?.pageSize,
+  );
   res.status(200).json({ success: true, data });
 }
 
@@ -35,8 +41,13 @@ export async function registerBridge(req, res) {
 }
 
 export async function exchanges(req, res) {
-  const rows = await repo.listExchanges(req.auth.facilityId);
-  const data = rows.map((row) => ({
+  const page = req.validated.query?.page;
+  const pageSize = req.validated.query?.pageSize;
+  const [total, rows] = await Promise.all([
+    repo.countExchanges(),
+    repo.listExchanges(req.auth.facilityId, page, pageSize),
+  ]);
+  const items = rows.map((row) => ({
     requestId: row.requestId,
     workflow: row.workflow,
     direction: row.direction,
@@ -48,7 +59,7 @@ export async function exchanges(req, res) {
       receivedAt: event.receivedAt,
     })),
   }));
-  res.status(200).json({ success: true, data });
+  res.status(200).json({ success: true, data: pageBody(items, page, pageSize, total) });
 }
 
 export async function callback(req, res) {

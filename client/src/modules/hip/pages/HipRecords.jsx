@@ -1,8 +1,9 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { http } from '@/shared/api/http.js';
 import { usePatients } from '@/modules/patients/hooks/usePatients.js';
-import { Alert, Button, Field, PageHeader, Select, Spinner } from '@/shared/ui/index.js';
+import { Alert, Button, Field, PAGE_SIZE, PageHeader, Pagination, Select, Spinner } from '@/shared/ui/index.js';
 import './HipRecords.css';
 
 const HI_TYPES = [
@@ -18,10 +19,17 @@ const HI_TYPES = [
 
 export default function HipRecordsPage() {
   const queryClient = useQueryClient();
-  const patients = usePatients('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const patientId = searchParams.get('patientId') || '';
+  const [patientPage, setPatientPage] = useState(1);
+  const [contextPage, setContextPage] = useState(1);
+  const [exchangePage, setExchangePage] = useState(1);
+  const patients = usePatients('', patientPage);
   const readiness = useQuery({ queryKey: ['hip-readiness'], queryFn: () => http.get('/hip/readiness') });
-  const exchanges = useQuery({ queryKey: ['hip-exchanges'], queryFn: () => http.get('/hip/exchanges') });
-  const [patientId, setPatientId] = useState('');
+  const exchanges = useQuery({
+    queryKey: ['hip-exchanges', exchangePage],
+    queryFn: () => http.get('/hip/exchanges', { params: { page: exchangePage, pageSize: PAGE_SIZE } }),
+  });
   const [form, setForm] = useState({
     hiType: 'ImmunizationRecord',
     occurredAt: new Date().toISOString(),
@@ -35,12 +43,15 @@ export default function HipRecordsPage() {
   const [saved, setSaved] = useState(null);
 
   const records = useQuery({
-    queryKey: ['hip-records', patientId],
-    queryFn: () => http.get(`/hip/patients/${patientId}/records`),
+    queryKey: ['hip-records', patientId, contextPage],
+    queryFn: () => http.get(`/hip/patients/${patientId}/records`, {
+      params: { page: contextPage, pageSize: PAGE_SIZE },
+    }),
     enabled: Boolean(patientId),
   });
 
-  const selected = (patients.data || []).find((row) => row.id === patientId);
+  const patientRows = patients.data?.items || [];
+  const selected = patientRows.find((row) => row.id === patientId);
 
   async function inspect() {
     setError('');
@@ -86,13 +97,31 @@ export default function HipRecordsPage() {
 
       <label className="hip-field">
         <span>Patient</span>
-        <Select value={patientId} onChange={(event) => setPatientId(event.target.value)}>
+        <Select value={patientId} onChange={(event) => {
+          setContextPage(1);
+          const next = new URLSearchParams(searchParams);
+          if (event.target.value) next.set('patientId', event.target.value);
+          else next.delete('patientId');
+          setSearchParams(next);
+        }}>
           <option value="">Select a patient</option>
-          {(patients.data || []).map((row) => (
+          {patientId && !patientRows.some((row) => row.id === patientId) ? (
+            <option value={patientId}>Selected patient</option>
+          ) : null}
+          {patientRows.map((row) => (
             <option key={row.id} value={row.id}>{row.name}</option>
           ))}
         </Select>
       </label>
+      {!patients.isPending && !patients.isError && (patients.data?.total || 0) > 0 ? (
+        <Pagination
+          page={patientPage}
+          pageSize={PAGE_SIZE}
+          total={patients.data.total}
+          disabled={patients.isFetching}
+          onPageChange={setPatientPage}
+        />
+      ) : null}
 
       {records.data ? (
         <p className="muted">
@@ -142,8 +171,9 @@ export default function HipRecordsPage() {
       ) : null}
 
       <h2>Care contexts</h2>
+      {!patientId ? <p className="muted">Select a patient to see saved care contexts.</p> : null}
       <ul className="hip-list">
-        {(records.data?.careContexts || []).map((row) => (
+        {(records.data?.careContexts?.items || []).map((row) => (
           <li key={row.id}>
             <strong>{row.display}</strong>
             <span>{row.linkStatus}</span>
@@ -154,10 +184,19 @@ export default function HipRecordsPage() {
           </li>
         ))}
       </ul>
+      {records.data?.careContexts?.total > 0 ? (
+        <Pagination
+          page={contextPage}
+          pageSize={PAGE_SIZE}
+          total={records.data.careContexts.total}
+          disabled={records.isFetching}
+          onPageChange={setContextPage}
+        />
+      ) : null}
 
       <h2>Exchanges</h2>
       <ul className="hip-list">
-        {(exchanges.data || []).map((row) => (
+        {(exchanges.data?.items || []).map((row) => (
           <li key={row.requestId}>
             <strong>{row.workflow}</strong>
             <span>{row.status}</span>
@@ -166,6 +205,15 @@ export default function HipRecordsPage() {
           </li>
         ))}
       </ul>
+      {(exchanges.data?.total || 0) > 0 ? (
+        <Pagination
+          page={exchangePage}
+          pageSize={PAGE_SIZE}
+          total={exchanges.data.total}
+          disabled={exchanges.isFetching}
+          onPageChange={setExchangePage}
+        />
+      ) : null}
     </section>
   );
 }

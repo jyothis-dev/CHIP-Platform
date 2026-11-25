@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { pageQueryShape } from '../../shared/pagination.js';
 
 const hiTypeEnum = z.enum([
   'Prescription',
@@ -20,6 +21,12 @@ const empty = {
 export const patientParamSchema = z.object({
   ...empty,
   params: z.object({ id: z.string().uuid() }),
+  query: z.object(pageQueryShape).optional().default({}),
+});
+
+export const exchangesQuerySchema = z.object({
+  ...empty,
+  query: z.object(pageQueryShape).optional().default({}),
 });
 
 export const inspectSchema = z.object({

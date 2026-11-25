@@ -179,6 +179,7 @@ components:
           type: string
           format: date
           nullable: true
+          description: Required when patientType is CHILD. Child must be under 18 years old.
         mobile:
           type: string
           description: Optional 10-digit mobile. Only last 4 digits are stored.

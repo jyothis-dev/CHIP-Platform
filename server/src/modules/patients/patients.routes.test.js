@@ -104,6 +104,37 @@ describe('patients routes', () => {
     expect(res.body.code).toBe('VALIDATION_ERROR');
   });
 
+  it('returns 400 when CHILD is 18 or older', async () => {
+    const res = await request(app)
+      .post('/patients')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        patientType: 'CHILD',
+        name: 'Adult Child',
+        gender: 'M',
+        dateOfBirth: '2000-01-01',
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe('VALIDATION_ERROR');
+    expect(res.body.message).toMatch(/under 18/i);
+  });
+
+  it('returns 400 when CHILD is missing date of birth', async () => {
+    const res = await request(app)
+      .post('/patients')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        patientType: 'CHILD',
+        name: 'No Dob',
+        gender: 'F',
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe('VALIDATION_ERROR');
+    expect(res.body.message).toMatch(/date of birth/i);
+  });
+
   it('lists patients for the staff facility', async () => {
     prismaMock.patient.findMany.mockResolvedValue([{
       id: patientId,

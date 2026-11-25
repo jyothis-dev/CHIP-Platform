@@ -49,6 +49,20 @@ export async function findAbhaIdentity(patientId) {
   return prisma.aBHAIdentity.findUnique({ where: { patientId } });
 }
 
+export async function updatePatientMobileLast4(patientId, mobileLast4) {
+  return prisma.patient.update({
+    where: { id: patientId },
+    data: { mobileLast4 },
+  });
+}
+
+export async function storePatientMobile(patientId, { mobileHash, mobileEnc }) {
+  return prisma.patient.update({
+    where: { id: patientId },
+    data: { mobileHash, mobileEnc },
+  });
+}
+
 export async function updateAbhaAddress(patientId, { abhaAddress, abhaNumberMasked }) {
   return prisma.aBHAIdentity.update({
     where: { patientId },

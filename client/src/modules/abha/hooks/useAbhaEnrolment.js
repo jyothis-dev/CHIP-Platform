@@ -5,6 +5,9 @@ export function useAbhaEnrolment() {
   const requestOtp = useMutation({
     mutationFn: abhaApi.requestOtp,
   });
+  const resendOtp = useMutation({
+    mutationFn: abhaApi.resendOtp,
+  });
   const verifyOtp = useMutation({
     mutationFn: abhaApi.verifyOtp,
   });
@@ -23,6 +26,7 @@ export function useAbhaEnrolment() {
 
   return {
     requestOtp,
+    resendOtp,
     verifyOtp,
     verifyMobile,
     loadSuggestions,
@@ -30,6 +34,7 @@ export function useAbhaEnrolment() {
     loadCard,
     isBusy:
       requestOtp.isPending
+      || resendOtp.isPending
       || verifyOtp.isPending
       || verifyMobile.isPending
       || loadSuggestions.isPending

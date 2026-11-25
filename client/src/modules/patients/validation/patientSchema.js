@@ -12,7 +12,7 @@ function ageInYears(dateOfBirth, today = new Date()) {
 }
 
 export const createPatientSchema = z.object({
-  patientType: z.enum(['MOTHER', 'CHILD']),
+  patientType: z.enum(['MOTHER', 'CHILD', 'GENERAL']),
   name: z.string().trim().min(1, 'Name is required').max(120),
   gender: z.enum(['M', 'F', 'O']),
   dateOfBirth: z.string().optional().or(z.literal('')),

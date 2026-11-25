@@ -25,6 +25,12 @@ export function hashAbhaNumber(abhaNumber) {
   return createHmac('sha256', key).update(normalized, 'utf8').digest('hex');
 }
 
+export function hashMobile(mobile) {
+  const digits = String(mobile).replace(/\D/g, '');
+  const local = digits.length > 10 ? digits.slice(-10) : digits;
+  return hashAbhaNumber(local);
+}
+
 /** AES-256-GCM. Output: base64(iv || tag || ciphertext). */
 export function encryptAbhaNumberAtRest(abhaNumber) {
   const key = keyBuffer(env.abhaEncKey, 'ABHA_ENC_KEY');

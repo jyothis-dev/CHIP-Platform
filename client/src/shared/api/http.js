@@ -2,6 +2,7 @@ import axios from 'axios';
 import { clearToken, getToken } from './token.js';
 import { ApiError, toApiError } from './errors.js';
 import { notifyUnauthorized } from './sessionEvents.js';
+import { refreshAccessToken } from './refreshSession.js';
 
 export const http = axios.create({
   baseURL: '/api',
@@ -38,8 +39,24 @@ http.interceptors.response.use(
   },
   (error) => {
     const apiError = toApiError(error);
-    const url = String(error?.config?.url || '');
+    const config = error?.config;
+    const url = String(config?.url || '');
     const isLogin = url.includes('/auth/login');
+    const isRefresh = url.includes('/auth/refresh');
+    if (apiError.status === 401 && !isLogin && !isRefresh && config && !config._retry) {
+      return refreshAccessToken()
+        .then((token) => {
+          config._retry = true;
+          config.headers = config.headers || {};
+          config.headers.Authorization = `Bearer ${token}`;
+          return http.request(config);
+        })
+        .catch(() => {
+          clearToken();
+          notifyUnauthorized();
+          return Promise.reject(apiError);
+        });
+    }
     if (apiError.status === 401 && !isLogin) {
       clearToken();
       notifyUnauthorized();

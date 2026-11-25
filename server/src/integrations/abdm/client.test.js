@@ -2,6 +2,18 @@ import { jest } from '@jest/globals';
 
 const mockRequest = jest.fn();
 const logLines = [];
+const traceCreates = [];
+
+jest.unstable_mockModule('../../shared/prisma.js', () => ({
+  default: {
+    abdmTrace: {
+      create: jest.fn(async ({ data }) => {
+        traceCreates.push(data);
+        return { id: 'trace-1', ...data };
+      }),
+    },
+  },
+}));
 
 jest.unstable_mockModule('../../shared/logger.js', () => ({
   logger: {
@@ -17,6 +29,8 @@ describe('abdmRequest', () => {
     jest.resetModules();
     mockRequest.mockReset();
     logLines.length = 0;
+    traceCreates.length = 0;
+    process.env.ABDM_TRACE = 'false';
     process.env.NODE_ENV = 'test';
     process.env.DATABASE_URL = 'postgresql://test:test@127.0.0.1:5432/chip_test?sslmode=disable';
     process.env.JWT_ACCESS_SECRET = 'test-access-secret-32-characters-min';
@@ -91,5 +105,32 @@ describe('abdmRequest', () => {
     const certCall = mockRequest.mock.calls[1][0];
     expect(certCall.headers.TIMESTAMP).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
     expect(certCall.headers['REQUEST-ID']).toEqual(expect.any(String));
+  });
+
+  it('stores a redacted request and response when tracing is on', async () => {
+    process.env.ABDM_TRACE = 'true';
+    mockRequest
+      .mockResolvedValueOnce({ status: 200, data: { accessToken: 'secret-token', expiresIn: 1200 } })
+      .mockResolvedValueOnce({
+        status: 400,
+        data: { message: 'Invalid LoginId', loginId: 'should-hide' },
+      });
+
+    const { abdmRequest, getContract } = await load();
+    const result = await abdmRequest({
+      contract: getContract('requestAadhaarOtp'),
+      body: { loginId: 'encrypted-aadhaar', scope: ['abha-enrol'] },
+      http: { request: mockRequest },
+    });
+
+    expect(result.status).toBe(400);
+    expect(traceCreates).toHaveLength(1);
+    expect(traceCreates[0].path).toBe('/abha/api/v3/enrollment/request/otp');
+    expect(traceCreates[0].requestBody.loginId).toBe('[REDACTED]');
+    expect(traceCreates[0].requestBody.scope).toEqual(['abha-enrol']);
+    expect(traceCreates[0].responseBody.loginId).toBe('[REDACTED]');
+    expect(traceCreates[0].responseBody.message).toBe('Invalid LoginId');
+    expect(JSON.stringify(traceCreates)).not.toContain('encrypted-aadhaar');
+    expect(JSON.stringify(traceCreates)).not.toContain('secret-token');
   });
 });

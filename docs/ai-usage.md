@@ -23,7 +23,7 @@ The evaluators score "effective use of AI-assisted development tools" and will a
 | 1 | Scaffold | | | | | |
 | 2 | ABDM client | | | | | |
 | 3 | Callback router | | | | | |
-| 4 | M1 | | | | | |
+| 4 | M1 OTP request | First enrolment OTP call returned HTTP 400 | Stopped sending a client-generated txnId. The first request now sends an empty txnId. A refused call logs and returns only the ABDM code and message | Official endpoint page for `POST /abha/api/v3/enrollment/request/otp`: txnId is optional and empty on the first call. Jest `npm test` in `server/`: 15 suites, 63 passed, exit 0. Not a sandbox retry | None in this change | not committed |
 | 5 | M2 FHIR | | | | | |
 | 6 | M2 linking | | | | | |
 | 7 | M3 consent | | | | | |

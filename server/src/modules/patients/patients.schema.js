@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const patientTypeEnum = z.enum(['MOTHER', 'CHILD']);
+const patientTypeEnum = z.enum(['MOTHER', 'CHILD', 'GENERAL']);
 const genderEnum = z.enum(['M', 'F', 'O']);
 
 export const listPatientsSchema = z.object({
@@ -28,6 +28,7 @@ const createPatientBodySchema = z.object({
   gender: genderEnum,
   dateOfBirth: z.string().date().optional().nullable(),
   mobile: z.string().regex(/^\d{10}$/).optional().nullable(),
+  forceNew: z.boolean().optional(),
 }).superRefine((value, ctx) => {
   if (value.patientType !== 'CHILD') return;
 

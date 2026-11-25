@@ -8,7 +8,7 @@ alwaysApply: true
 Test server behavior with Jest. A route or service is not done until it has test cases.
 
 - Put tests in `server` as `*.test.js`, next to the module or under `__tests__/`.
-- Run them with `npm test` (`node --experimental-vm-modules node_modules/jest/bin/jest.js`).
+- Do not run `npm test` or Jest unless the user explicitly asks. The full suite is slow. Writing or updating a test file is enough until they ask for a run.
 - Each feature needs cases for the success path, invalid input, auth or permission denial, and the centralized error code (`404`, `409`, and so on).
 - Call the real function or the Express app. Mock only the database, clock, and outbound messages.
 - Use a test database or mocks. Never point tests at production.

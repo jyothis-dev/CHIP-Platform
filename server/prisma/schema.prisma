@@ -18,6 +18,7 @@ enum UserRole {
 enum PatientType {
   MOTHER
   CHILD
+  GENERAL
   @@schema("chip")
 }
 
@@ -103,9 +104,24 @@ model User {
   idempotencyKeys    IdempotencyKey[]
   auditLogs          AuditLog[]
   registeredPatients Patient[]        @relation("PatientRegisteredBy")
+  refreshTokens      RefreshToken[]
 
   @@index([facilityId])
   @@map("users")
+  @@schema("chip")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("refresh_tokens")
   @@schema("chip")
 }
 
@@ -154,6 +170,8 @@ model Patient {
   gender             String
   dateOfBirth        DateTime?                 @db.Date
   mobileLast4        String?                   @db.VarChar(4)
+  mobileHash         String?
+  mobileEnc          String?
   registeredByUserId String?
   createdAt          DateTime                  @default(now())
   updatedAt          DateTime                  @updatedAt
@@ -166,6 +184,7 @@ model Patient {
   abhaIdentity       ABHAIdentity?
   healthRecords      HealthRecord[]
   careContexts       CareContext[]
+  linkTokens         LinkToken[]
 
   @@index([facilityId])
   @@index([facilityId, name])
@@ -219,6 +238,7 @@ model Encounter {
   facility       Facility       @relation(fields: [facilityId], references: [id])
   practitioner   Practitioner?  @relation(fields: [practitionerId], references: [id])
   healthRecords  HealthRecord[]
+  careContexts   CareContext[]
 
   @@index([patientId])
   @@index([facilityId])
@@ -255,6 +275,8 @@ model HealthRecord {
   validationStatus  ValidationStatus @default(UNVERIFIED)
   validationSummary String?
   sourceHash        String?
+  bundleEnc         String?
+  bundleBytes       Int?
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
   patient           Patient          @relation(fields: [patientId], references: [id])
@@ -266,25 +288,46 @@ model HealthRecord {
   @@schema("chip")
 }
 
+model LinkToken {
+  id          String   @id @default(uuid())
+  patientId   String
+  hipId       String
+  tokenEnc    String
+  abhaAddress String
+  issuedAt    DateTime
+  expiresAt   DateTime
+  requestId   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  patient     Patient  @relation(fields: [patientId], references: [id])
+
+  @@index([patientId, hipId])
+  @@map("link_tokens")
+  @@schema("chip")
+}
+
 model CareContext {
-  id              String         @id @default(uuid())
+  id              String          @id @default(uuid())
   facilityId      String
   patientId       String
-  healthRecordId  String
+  encounterId     String?
+  healthRecordId  String?
   referenceNumber String
   display         String
   linkStatus      LinkStatus
   linkedAt        DateTime?
-  transactionId   String
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  facility        Facility       @relation(fields: [facilityId], references: [id])
-  patient         Patient        @relation(fields: [patientId], references: [id])
-  healthRecord    HealthRecord   @relation(fields: [healthRecordId], references: [id])
-  transaction     ABDMTransaction @relation(fields: [transactionId], references: [id])
+  transactionId   String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  facility        Facility        @relation(fields: [facilityId], references: [id])
+  patient         Patient         @relation(fields: [patientId], references: [id])
+  encounter       Encounter?      @relation(fields: [encounterId], references: [id])
+  healthRecord    HealthRecord?   @relation(fields: [healthRecordId], references: [id])
+  transaction     ABDMTransaction? @relation(fields: [transactionId], references: [id])
   dataTransfers   DataTransfer[]
 
   @@unique([facilityId, referenceNumber])
+  @@index([patientId, linkStatus])
   @@map("care_contexts")
   @@schema("chip")
 }
@@ -461,5 +504,22 @@ model AuditLog {
   @@index([facilityId, createdAt])
   @@index([correlationId])
   @@map("audit_logs")
+  @@schema("chip")
+}
+
+model AbdmTrace {
+  id           String   @id @default(uuid())
+  method       String
+  path         String
+  requestId    String
+  status       Int?
+  latencyMs    Int?
+  requestBody  Json?
+  responseBody Json?
+  errorMessage String?
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("abdm_traces")
   @@schema("chip")
 }

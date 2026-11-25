@@ -42,6 +42,7 @@ export default function PatientsPage() {
   const [fieldErrors, setFieldErrors] = useState({});
   const [selected, setSelected] = useState(null);
   const [formError, setFormError] = useState('');
+  const [match, setMatch] = useState(null);
 
   const patientsQuery = usePatients(appliedQuery);
   const createPatient = useCreatePatient();
@@ -51,8 +52,7 @@ export default function PatientsPage() {
     [appliedQuery],
   );
 
-  async function onRegister(event) {
-    event.preventDefault();
+  async function register(forceNew) {
     setFormError('');
     setFieldErrors({});
     const parsed = parseCreatePatient(form);
@@ -70,14 +70,29 @@ export default function PatientsPage() {
       gender: parsed.data.gender,
       ...(parsed.data.dateOfBirth ? { dateOfBirth: parsed.data.dateOfBirth } : {}),
       ...(parsed.data.mobile ? { mobile: parsed.data.mobile } : {}),
+      ...(forceNew ? { forceNew: true } : {}),
     };
     try {
       const created = await createPatient.mutateAsync(body);
       setForm(emptyForm);
+      setMatch(null);
       setSelected(created);
     } catch (err) {
+      if (err.code === 'PATIENT_MATCH') {
+        const id = err.details?.find((item) => item.path === 'existingPatientId')?.message;
+        const name = err.details?.find((item) => item.path === 'existingPatientName')?.message;
+        setMatch({ id, name });
+        setFormError('An existing patient matches this name, gender, date of birth, and mobile.');
+        return;
+      }
       setFormError(err.message || 'Could not register patient');
     }
+  }
+
+  function onRegister(event) {
+    event.preventDefault();
+    setMatch(null);
+    register(false);
   }
 
   const patients = patientsQuery.data || [];
@@ -86,7 +101,7 @@ export default function PatientsPage() {
     <section className="patients stack">
       <PageHeader
         title="Patients"
-        description={`Register a mother or child, then select one for ABHA enrolment. Acting as ${user?.name} (${user?.role}).`}
+        description={`Register a mother, child, or general patient, then select one for ABHA enrolment. Acting as ${user?.name} (${user?.role}).`}
       />
 
       <Alert>{formError || (patientsQuery.isError ? patientsQuery.error.message : '')}</Alert>
@@ -104,6 +119,7 @@ export default function PatientsPage() {
               >
                 <option value="MOTHER">Mother</option>
                 <option value="CHILD">Child</option>
+                <option value="GENERAL">General</option>
               </Select>
             )}
           </Field>
@@ -163,6 +179,26 @@ export default function PatientsPage() {
         <Button type="submit" disabled={createPatient.isPending}>
           {createPatient.isPending ? 'Saving…' : 'Register'}
         </Button>
+        {match ? (
+          <div className="stack">
+            <p>Existing patient {match.name}. Use that record, or register a new one.</p>
+            <div className="row">
+              <Button
+                type="button"
+                onClick={() => {
+                  setSelected({ id: match.id, name: match.name });
+                  setMatch(null);
+                  setFormError('');
+                }}
+              >
+                Use this patient
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => register(true)}>
+                Register as a new patient
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </form>
 
       <div className="card stack">
@@ -229,6 +265,10 @@ export default function PatientsPage() {
           <h2>Patient summary</h2>
           <p><span className="muted">Name</span> {selected.name}</p>
           <p><span className="muted">Type</span> {selected.patientType}</p>
+          <p>
+            <span className="muted">Mobile</span>{' '}
+            {selected.mobileLast4 ? `******${selected.mobileLast4}` : '—'}
+          </p>
           <p>
             <span className="muted">Managed by</span>{' '}
             {selected.managedBy

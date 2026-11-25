@@ -6,8 +6,16 @@ const handlers = {
   responseError: [],
 };
 
+const refreshAccessToken = vi.hoisted(() => vi.fn());
+const httpRequest = vi.hoisted(() => vi.fn());
+
+vi.mock('./refreshSession.js', () => ({
+  refreshAccessToken,
+}));
+
 vi.mock('axios', () => {
   const instance = {
+    request: (...args) => httpRequest(...args),
     interceptors: {
       request: {
         use: (fn) => {
@@ -36,6 +44,9 @@ describe('http client', () => {
     handlers.request.length = 0;
     handlers.responseSuccess.length = 0;
     handlers.responseError.length = 0;
+    refreshAccessToken.mockReset();
+    refreshAccessToken.mockRejectedValue(new Error('no refresh session'));
+    httpRequest.mockReset();
     vi.resetModules();
     tokenApi = await import('./token.js');
     tokenApi.clearToken();
@@ -69,7 +80,35 @@ describe('http client', () => {
     });
   });
 
-  it('clears token on 401 for non-login requests', async () => {
+  it('retries a 401 once after the refresh cookie issues a new access token', async () => {
+    tokenApi.setToken('stale-token');
+    refreshAccessToken.mockImplementation(async () => {
+      tokenApi.setToken('fresh-token');
+      return 'fresh-token';
+    });
+    httpRequest.mockResolvedValue({
+      data: { success: true, data: { id: 'patient-1' } },
+      status: 200,
+    });
+    const onError = handlers.responseError[0];
+    const result = await onError({
+      config: { url: '/patients', headers: { Authorization: 'Bearer stale-token' } },
+      response: {
+        status: 401,
+        data: { success: false, code: 'UNAUTHENTICATED', message: 'Authentication required' },
+      },
+    });
+    expect(result).toEqual({
+      data: { success: true, data: { id: 'patient-1' } },
+      status: 200,
+    });
+    expect(httpRequest).toHaveBeenCalledWith(expect.objectContaining({
+      headers: expect.objectContaining({ Authorization: 'Bearer fresh-token' }),
+    }));
+    expect(tokenApi.getToken()).toBe('fresh-token');
+  });
+
+  it('clears token on 401 when refresh fails', async () => {
     tokenApi.setToken('stale-token');
     const onError = handlers.responseError[0];
     await expect(

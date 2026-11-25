@@ -120,6 +120,39 @@ describe('patients routes', () => {
     expect(res.body.message).toMatch(/under 18/i);
   });
 
+  it('creates a general patient without a date of birth', async () => {
+    prismaMock.patient.create.mockResolvedValue({
+      id: patientId,
+      facilityId,
+      patientType: 'GENERAL',
+      name: 'Anil Rao',
+      gender: 'M',
+      dateOfBirth: null,
+      mobileLast4: null,
+      createdAt: new Date(),
+      registeredBy: { id: userId, name: 'Demo Staff', role: 'STAFF' },
+      abhaIdentity: null,
+    });
+
+    const res = await request(app)
+      .post('/patients')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        patientType: 'GENERAL',
+        name: 'Anil Rao',
+        gender: 'M',
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.patientType).toBe('GENERAL');
+    expect(res.body.data.name).toBe('Anil Rao');
+    expect(mockLogAudit).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'patient.create',
+      outcome: 'success',
+      message: expect.stringContaining('GENERAL patient Anil Rao'),
+    }));
+  });
+
   it('returns 400 when CHILD is missing date of birth', async () => {
     const res = await request(app)
       .post('/patients')
@@ -192,5 +225,31 @@ describe('patients routes', () => {
 
     expect(res.status).toBe(404);
     expect(res.body.code).toBe('PATIENT_NOT_FOUND');
+  });
+
+  it('reuses an existing patient when name, gender, date of birth, and mobile last 4 match', async () => {
+    prismaMock.patient.findFirst.mockResolvedValue({
+      id: patientId,
+      name: 'Ravi Kumar',
+      facilityId,
+    });
+
+    const res = await request(app)
+      .post('/patients')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        patientType: 'CHILD',
+        name: 'Ravi Kumar',
+        gender: 'M',
+        dateOfBirth: '2024-01-01',
+        mobile: '9876541234',
+      });
+
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('PATIENT_MATCH');
+    expect(res.body.details).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: 'existingPatientId', message: patientId }),
+    ]));
+    expect(prismaMock.patient.create).not.toHaveBeenCalled();
   });
 });

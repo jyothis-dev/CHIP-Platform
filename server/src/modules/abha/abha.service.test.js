@@ -60,6 +60,11 @@ jest.unstable_mockModule('./abha.repository.js', () => ({
     store.identities.set(id, row);
     return row;
   },
+  updatePatientMobileLast4: async (id, mobileLast4) => {
+    const row = store.patients.get(id);
+    if (row) row.mobileLast4 = mobileLast4;
+    return row;
+  },
   assertIdempotency: async ({ key, userId, route, body }) => {
     if (!key) return null;
     const hash = JSON.stringify(body);
@@ -118,6 +123,7 @@ describe('abha.service', () => {
     const result = await service.requestAadhaarOtp({
       patientId,
       aadhaar: '999999999999',
+      consentAccepted: true,
       actorId,
       facilityId,
       correlationId: 'corr-1',
@@ -125,8 +131,83 @@ describe('abha.service', () => {
 
     expect(result.status).toBe('ACCEPTED');
     expect(result.transactionId).toBe(transactionId);
+    expect(Date.parse(result.otpExpiresAt) - Date.now()).toBeGreaterThan(9 * 60 * 1000);
     expect(store.transactions.get(transactionId).status).toBe('ACCEPTED');
     expect(store.transactions.get(transactionId).status).not.toBe('COMPLETED');
+    expect(store.transactions.get(transactionId).externalTxnId).toBe('ext-txn-1');
+    expect(mockAbdmRequest).toHaveBeenCalledWith(expect.objectContaining({
+      body: {
+        txnId: '',
+        scope: ['abha-enrol'],
+        loginHint: 'aadhaar',
+        loginId: 'enc:999999999999',
+        otpSystem: 'aadhaar',
+      },
+    }));
+  });
+
+  it('stores the ABDM error code when the first OTP request is refused', async () => {
+    mockAbdmRequest.mockResolvedValueOnce({
+      status: 400,
+      body: {
+        code: 'ABDM-1017',
+        message: 'Invalid Transaction Id',
+      },
+      requestId: 'req-otp-400',
+    });
+
+    const service = await load();
+    await expect(service.requestAadhaarOtp({
+      patientId,
+      aadhaar: '999999999999',
+      consentAccepted: true,
+      actorId,
+      facilityId,
+    })).rejects.toMatchObject({
+      statusCode: 502,
+      code: 'ABHA_OTP_REQUEST_FAILED',
+      message: 'ABDM-1017: Invalid Transaction Id',
+    });
+
+    expect(mockAbdmRequest.mock.calls[0][0].body.txnId).toBe('');
+    expect(store.transactions.get(transactionId).status).toBe('FAILED');
+    expect(store.transactions.get(transactionId).lastErrorCode).toBe('ABDM-1017');
+  });
+
+  it('verifyAadhaarOtp proceeds without BENEFIT_NAME when no benefit programme is configured', async () => {
+    process.env.ABDM_BENEFIT_NAME = '';
+    store.transactions.set(transactionId, {
+      id: transactionId,
+      workflow: 'abha.enrol.aadhaar_otp',
+      externalTxnId: 'ext-txn-1',
+      status: 'ACCEPTED',
+      correlationId: 'corr-1',
+      safeMetadata: { patientId },
+    });
+
+    mockAbdmRequest.mockResolvedValueOnce({
+      status: 200,
+      body: {
+        isNew: true,
+        healthIdNumber: '12-3456-7890-1234',
+        tokens: { token: 'user-token' },
+        txnId: 'ext-txn-2',
+      },
+      requestId: 'req-no-benefit',
+    });
+
+    const service = await load();
+    await service.verifyAadhaarOtp({
+      transactionId,
+      otp: '123456',
+      consentAccepted: true,
+      actorId,
+      facilityId,
+    });
+
+    expect(mockAbdmRequest).toHaveBeenCalledTimes(1);
+    expect(mockAbdmRequest.mock.calls[0][0].contract.headers).not.toContain('BENEFIT_NAME');
+    expect(mockAbdmRequest.mock.calls[0][0].contract.benefitName).toBeNull();
   });
 
   it('verifyAadhaarOtp with isNew false stores the identity and does not re-request OTP', async () => {
@@ -183,7 +264,10 @@ describe('abha.service', () => {
 
     mockAbdmRequest.mockResolvedValueOnce({
       status: 400,
-      body: { code: 'ABDM-1002' },
+      body: {
+        code: 'ABDM-1204',
+        message: 'UIDAI Error code : 400 : Invalid Aadhaar OTP value.',
+      },
       requestId: 'req-fail',
     });
 
@@ -194,9 +278,13 @@ describe('abha.service', () => {
       consentAccepted: true,
       actorId,
       facilityId,
-    })).rejects.toMatchObject({ statusCode: 400, code: 'ABHA_OTP_INVALID' });
+    })).rejects.toMatchObject({
+      statusCode: 400,
+      code: 'ABHA_OTP_INVALID',
+      message: 'UIDAI Error code : 400 : Invalid Aadhaar OTP value.',
+    });
 
-    expect(store.transactions.get(transactionId).status).toBe('FAILED');
+    expect(store.transactions.get(transactionId).status).toBe('ACCEPTED');
     expect(store.identities.size).toBe(0);
   });
 
@@ -206,6 +294,7 @@ describe('abha.service', () => {
     await expect(service.requestAadhaarOtp({
       patientId,
       aadhaar: '999999999999',
+      consentAccepted: true,
       actorId,
       facilityId,
       correlationId: 'corr-1',
@@ -231,5 +320,112 @@ describe('abha.service', () => {
     })).rejects.toMatchObject({ statusCode: 409, code: 'IDEMPOTENCY_CONFLICT' });
 
     expect(service).toBeTruthy();
+  });
+
+  it('does not request a mobile OTP when the enrol profile mobile matches', async () => {
+    store.transactions.set(transactionId, {
+      id: transactionId,
+      workflow: 'abha.enrol.aadhaar_otp',
+      externalTxnId: 'ext-txn-1',
+      status: 'ACCEPTED',
+      correlationId: 'corr-1',
+      safeMetadata: { patientId },
+    });
+    mockAbdmRequest.mockResolvedValueOnce({
+      status: 200,
+      body: {
+        isNew: true,
+        healthIdNumber: '12-3456-7890-1234',
+        ABHAProfile: {
+          ABHANumber: '12-3456-7890-1234',
+          mobile: '******1234',
+          firstName: 'Demo',
+        },
+        tokens: { token: 'user-token' },
+        txnId: 'ext-txn-2',
+      },
+      requestId: 'req-same',
+    });
+
+    const service = await load();
+    const result = await service.verifyAadhaarOtp({
+      transactionId,
+      otp: '123456',
+      mobile: '9999991234',
+      consentAccepted: true,
+      actorId,
+      facilityId,
+    });
+
+    expect(result.needsMobileVerify).toBe(false);
+    expect(result.profile.mobile).toBe('9999991234');
+    expect(result.abhaNumber).toBe('12-3456-7890-1234');
+    expect(mockAbdmRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects an Aadhaar OTP after 10 minutes', async () => {
+    store.transactions.set(transactionId, {
+      id: transactionId,
+      workflow: 'abha.enrol.aadhaar_otp',
+      externalTxnId: 'ext-txn-1',
+      status: 'ACCEPTED',
+      correlationId: 'corr-1',
+      safeMetadata: { patientId },
+    });
+    const service = await load();
+    const { putEnrolmentSession } = await import('./enrolmentSession.js');
+    putEnrolmentSession(transactionId, { otpExpiresAt: Date.now() - 1000, patientId });
+    await expect(service.verifyAadhaarOtp({
+      transactionId,
+      otp: '123456',
+      mobile: '9999991234',
+      consentAccepted: true,
+      actorId,
+      facilityId,
+    })).rejects.toMatchObject({
+      statusCode: 400,
+      code: 'ABHA_OTP_EXPIRED',
+    });
+    expect(mockAbdmRequest).not.toHaveBeenCalled();
+  });
+
+  it('does not call ABDM on a third OTP resend', async () => {
+    mockAbdmRequest.mockResolvedValue({
+      status: 200,
+      body: { txnId: 'ext-txn-1', message: 'OTP sent to *******1234' },
+      requestId: 'req-otp',
+    });
+    const service = await load();
+    const started = await service.requestAadhaarOtp({
+      patientId,
+      aadhaar: '999999999999',
+      consentAccepted: true,
+      actorId,
+      facilityId,
+    });
+    await service.resendOtp({
+      transactionId: started.transactionId,
+      channel: 'aadhaar',
+      actorId,
+      facilityId,
+    });
+    await service.resendOtp({
+      transactionId: started.transactionId,
+      channel: 'aadhaar',
+      actorId,
+      facilityId,
+    });
+    const callsAfterTwo = mockAbdmRequest.mock.calls.length;
+    await expect(service.resendOtp({
+      transactionId: started.transactionId,
+      channel: 'aadhaar',
+      actorId,
+      facilityId,
+    })).rejects.toMatchObject({
+      statusCode: 400,
+      code: 'OTP_RESEND_LIMIT',
+      message: 'Maximum OTP resend attempts reached. Please try again after 30 mins',
+    });
+    expect(mockAbdmRequest.mock.calls.length).toBe(callsAfterTwo);
   });
 });

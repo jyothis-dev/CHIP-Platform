@@ -8,10 +8,11 @@ All internal routes that are implemented are in `server/src/docs/openapi.yaml`, 
 |---|---|---|---|
 | POST | `/api/auth/login` | Staff login | — |
 | GET | `/api/dashboard` | Counts, pending transactions, recent callbacks | — |
-| GET/POST | `/api/patients` | Search/register mother or child (IMPLEMENTED_NOT_SANDBOX_TESTED). Returns `managedBy` staff | — |
+| GET/POST | `/api/patients` | Search/register mother, child, or general patient (IMPLEMENTED_NOT_SANDBOX_TESTED). Returns `managedBy` staff | — |
 | GET | `/api/patients/:id` | Profile with managing staff and masked ABHA status (IMPLEMENTED_NOT_SANDBOX_TESTED) | — |
 | POST | `/api/patients/:motherId/children` | Register newborn, link to mother | — |
 | POST | `/api/patients/:id/encounters` | Child follow-up / immunization | — |
+| GET | `/api/abha/traces` | Development log of recent ABHA requests and redacted responses (IMPLEMENTED_NOT_SANDBOX_TESTED). On in development unless `ABDM_TRACE=false` | M1 |
 | POST | `/api/abha/enrolment/otp` | Start ABHA creation (request OTP) | M1 |
 | POST | `/api/abha/enrolment/verify` | Verify OTP and enrol | M1 |
 | POST | `/api/abha/login/otp` | Start ABHA verification/login | M1 |

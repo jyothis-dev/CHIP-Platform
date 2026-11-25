@@ -203,7 +203,7 @@ client/                  # React + Vite modular monolith
   src/shared/            # Axios http client, TanStack Query, UI primitives, styles
 ```
 
-The React client is a modular monolith aligned with backend domains. Feature modules own their API clients, React Query hooks, Zod form schemas, and pages. Shared Axios unwraps `{ success, data }`, maps `ApiError`, and clears session on 401. TanStack Query holds server state; auth session uses `['auth','me']`. Custom CSS tokens live in `shared/styles`. This is a structure and client-hardening change only (`IMPLEMENTED_NOT_SANDBOX_TESTED`).
+The React client is a modular monolith aligned with backend domains. Feature modules own their API clients, React Query hooks, Zod form schemas, and pages. Shared Axios unwraps `{ success, data }`, maps `ApiError`, and on 401 calls `POST /auth/refresh` once. If that cookie is accepted, the original request is retried with the new access token. If refresh fails, the client clears the access token. TanStack Query holds server state; auth session uses `['auth','me']`. Custom CSS tokens live in `shared/styles`. This is a structure and client-hardening change only (`IMPLEMENTED_NOT_SANDBOX_TESTED`).
 
 ## Facility / bridge / role configuration
 

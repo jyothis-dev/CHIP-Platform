@@ -29,7 +29,7 @@ req.headers.authorization, req.headers["x-auth-token"], *.otp, *.aadhaar, *.aadh
 
 ## Authentication and authorization
 - App auth is separate from ABDM gateway auth.
-- The shell in `server/src/shared/password.js` hashes passwords with bcrypt, cost 12. Argon2id is the target when auth is rebuilt, and it is not what the code does today. Short-lived JWT access tokens (≤ 15 min). No refresh-token store in the shell.
+- The shell in `server/src/shared/password.js` hashes passwords with bcrypt, cost 12. Argon2id is the target when auth is rebuilt, and it is not what the code does today. Staff access tokens are JWTs of 15 minutes. A separate refresh token lasts 7 days, is stored only as a SHA-256 hash in `refresh_tokens`, and is sent only as the httpOnly cookie `chip_refresh`. `POST /auth/refresh` rotates that cookie and returns a new access token. A reused refresh token revokes every active refresh token for that staff user. Logout clears the cookie and revokes the user's active refresh tokens. The raw refresh token is not a JSON field and is not written to the audit log.
 - RBAC plus facility scope on every query. Client-supplied patient or facility IDs are never trusted without a scope check.
 - No health data in JWT claims.
 - Helmet, CORS allow-list, body size limits and rate limiting on login and OTP routes.
@@ -44,9 +44,10 @@ req.headers.authorization, req.headers["x-auth-token"], *.otp, *.aadhaar, *.aadh
 Any failure → reject, audit with a reason code, no data. Unit tests cover each rule.
 
 ## Callbacks and cryptography
-- Authenticate callbacks exactly as the docs specify. Do not invent signature schemes.
-- HTTPS only. Use a tunnel (ngrok/Cloudflare Tunnel) for local sandbox testing, if the sandbox permits it.
-- Persist and deduplicate before processing. Replay tests are in the test suite.
+- M2 callbacks require an `Authorization: Bearer` header and, when `X-HIP-ID` is present, that it equals `ABDM_HIP_ID`. The M2 skill says the keys that would verify that bearer are not in the published gateway calls, so no extra signature scheme is applied.
+- Answer callbacks must carry `response.requestId` for a request this process sent. A duplicate `(route, dedupKey)` is acknowledged and not processed again.
+- HTTPS only. The callback base is `ABDM_CALLBACK_BASE_URL`.
+- Link tokens, FHIR bundles, and mobiles are AES-GCM at rest. Health-information push uses Curve25519, HKDF-SHA256, and AES-256-GCM as described in the M2 skill. Private keys stay in memory.
 - Cryptography follows the official algorithm and sample code only. It is reviewed manually, and the review is recorded in `docs/ai-usage.md`.
 
 ## Audit

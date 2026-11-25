@@ -1,0 +1,6 @@
+﻿# Keep secret env files out of Agent, Tab, and @ mentions.
+# server/.env is the exception: the agent may read it when configuring or starting the API.
+.env*
+**/.env
+**/.env.*
+!server/.env

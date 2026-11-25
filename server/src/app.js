@@ -13,6 +13,8 @@ import authRoutes from './modules/auth/auth.routes.js';
 import abhaRoutes from './modules/abha/abha.routes.js';
 import patientsRoutes from './modules/patients/patients.routes.js';
 import auditRoutes from './modules/audit/audit.routes.js';
+import hipRoutes from './modules/hip/hip.routes.js';
+import callbackRoutes from './modules/hip/callback.routes.js';
 import { mountSwagger } from './docs/swagger.js';
 
 const app = express();
@@ -37,6 +39,8 @@ app.use('/auth', authRoutes);
 app.use('/abha', abhaRoutes);
 app.use('/patients', patientsRoutes);
 app.use('/audit', auditRoutes);
+app.use('/hip', hipRoutes);
+app.use(callbackRoutes);
 mountSwagger(app);
 
 app.use(notFound);

@@ -19,6 +19,7 @@ export async function create(req, res) {
     gender: body.gender,
     dateOfBirth: body.dateOfBirth,
     mobile: body.mobile,
+    forceNew: body.forceNew,
     correlationId: req.id,
   });
   res.status(201).json({ success: true, data });

@@ -23,27 +23,36 @@ This is a demo data journey only, not a clinical product.
 
 Requirements:
 - Encrypt identifiers and OTPs exactly as the fetched docs specify (certificate source, algorithm, padding, and encoding). Those details are `UNVERIFIED` until that page is read. Keep the dashes in an ABHA number before encryption. The Build with AI page states that bare digits are refused.
-- Store `txnId` on `ABDMTransaction`. Show `PENDING_VERIFICATION` until OTP verification succeeds.
+- The first Aadhaar enrolment OTP request sends an empty `txnId`. Store the `txnId` ABDM returns on `ABDMTransaction`, and send that same id on resend. Show `PENDING_VERIFICATION` until OTP verification succeeds.
 - If the fetched verify operation returns the profile and defines no callback, that response may set the M1 transaction to `COMPLETED`. If it defines a callback, wait for that callback. Do not force every M1 call through `WAITING_FOR_CALLBACK`.
 - Persist only: encrypted ABHA number, key version, a lookup hash, the masked value for display, one ABHA address, and verification status and time. Never the OTP, Aadhaar, or user tokens.
-- Map documented error codes to safe UI messages (invalid OTP, expired txn, rate limit). Never echo raw ABDM error bodies to the UI.
+- Map OTP failures to the message ABDM returned. Do not replace that sentence with local wording, and do not log the request or response body.
+- A wrong OTP keeps the same enrolment transaction so the person can retry.
+- Resend stays disabled for 60 seconds, allows two resends, then shows "Maximum OTP resend attempts reached. Please try again after 30 mins" without a third call.
+- A communication mobile whose last four digits match `ABHAProfile.mobile` skips the second OTP. A different last four starts mobile verification.
+- ABHA address rules (length 8–18 including `@sbx` or `@abdm`, letters and digits, at most one dot and one underscore, neither first nor last) are checked on the screen before submit. The create call sends the handle without the `@` suffix.
+- After creation the result screen shows the 14-digit ABHA number and profile. `GET /patients/:id/abha` and the audit row stay masked.
+- Before creating a patient, a full match on name, gender, date of birth, and mobile last 4 returns `409 PATIENT_MATCH` and reuses that patient. A mismatch creates a new patient. The full mobile is not stored.
 - OTP attempts and resend follow the documented limits. No automatic retry of OTP-consuming calls.
 
 ## M2 — HIP: records, care-context linking and sharing
 
-| # | Workflow | Tier |
-|---|---|---|
-| 2.1 | Core stores `hiType` and `validationStatus` `UNVERIFIED`. It does not validate against a named FHIR profile and does not link on a profile name. Linking stays `PENDING` until a fetched ABDM page names the profile. | C |
-| 2.2 | HIP-initiated care-context linking + callback | C |
-| 2.3 | Patient-initiated linking: discover → init → confirm callbacks | E |
-| 2.4 | Respond to health-information request: validate consent → encrypt → push → notify | C (encryption may be `MOCKED` if blocked) |
-| 2.5 | Link status visible per care context | C |
+Status: `IMPLEMENTED_NOT_SANDBOX_TESTED`. Skill catalogue 2026.09.16. CHIP acts as the HIP. A 202 from the gateway is receipt. `LINKED` is set from the link callback.
 
-Requirements:
-- Core does not validate against a named FHIR profile. It stores `hiType` and `validationStatus` `UNVERIFIED` and does not link on a profile name. Linking stays `PENDING` until a fetched ABDM page names the profile.
-- A link is shown as `LINKED` only after the documented completion callback or status.
-- Patient matching for discovery (2.3) uses documented demographic and identifier rules. Ambiguous matches return no match, never a guess.
-- Health-information request handling runs the consent checks listed in `architecture.md` §5 before building any bundle.
+1. Objective. Save a visit as a care context and push an encrypted FHIR bundle only after a granted consent.
+2. Role. HIP.
+3. Specification. `.cursor/skills/abdm-m2` and `https://docs.abdm.gov.in/docs/hiecm/v3/api/m2`. ImmunizationRecord profile fetched 2026-11-25 from `https://nrces.in/ndhm/fhir/r4/StructureDefinition/ImmunizationRecord`, version 6.5.0. The other seven HI type profile URLs are still `UNVERIFIED`.
+4. Prerequisites. Gateway session credentials. `ABDM_HIP_ID` from `GET /api/hiecm/gateway/v3/bridge-services`. `ABDM_CALLBACK_BASE_URL`, registered with `PATCH /api/hiecm/gateway/v3/bridge/url` only after a person confirms it. Gateway v1 `/gateway/v1/bridges` is not used.
+5. Actors. Facility staff, the CHIP API, the ABDM gateway, and the sandbox PHR app.
+6. Workflow. Saving a `VALID` immunization bundle for a verified ABHA starts generate-token (or reuses a token younger than six months) and then `POST /api/hiecm/hip/v3/link/carecontext`. A patient with a mobile and no ABHA address takes the SMS deep-link call. Discovery, init, and confirm are callbacks. Consent notify is stored, and a health-information request is pushed only when the stored consent allows it.
+7. Operations. The gateway paths are the contracts in `server/src/integrations/abdm/contracts.js`. Data push goes to the `dataPushUrl` on the health-information request, not through the gateway.
+8. Callbacks. Nine inbound paths under `/api/v3/...`. Each requires a bearer token. An answer callback must carry `response.requestId` for a request this HIP sent. A duplicate `(route, dedupKey)` is acknowledged and not processed again. The skill snapshot does not give the inbound acknowledgement body, so the HTTP response is 202.
+9. Data. `Encounter` is the visit. `CareContext.referenceNumber` is the encounter id. The FHIR bundle is encrypted at rest. The link token is encrypted at rest. Mobile is stored as a hash plus ciphertext.
+10. Identifiers. Outbound `REQUEST-ID` is the `ABDMTransaction.requestId`. Callbacks correlate on `response.requestId`.
+11. Security. Consent must be `GRANTED`, unexpired, for this HIP id, and must cover the care context, date range, and HI type. Curve25519 material stays in memory.
+12. Errors. Missing `ABDM_HIP_ID` refuses the outbound call locally (`HIP_ID_MISSING`). An ABDM refusal is `ABDM_UPSTREAM` or the upstream code.
+13. Tests. Jest with mocked Axios and Prisma: `fidelius.test.js`, `fhir/bundle.test.js`, `hip.routes.test.js`. 21 tests passed on 2026-11-25 in those files together with `patients.routes.test.js`. No sandbox request id.
+14. Limitations. `ABDM_HIP_ID` is still empty until bridge-services returns a HIP service. The callback URL is not registered until staff confirm it. Only `ImmunizationRecord` is claimed. A PHR app pull has not been run.
 
 ## M3 — HIU: consent and health information exchange
 

@@ -32,6 +32,26 @@ export async function listPatients({ facilityId, q, take = 100 }) {
   });
 }
 
+export async function findMatchingPatient({
+  facilityId,
+  name,
+  gender,
+  dateOfBirth,
+  mobileLast4,
+}) {
+  return prisma.patient.findFirst({
+    where: {
+      facilityId,
+      name: { equals: name, mode: 'insensitive' },
+      gender,
+      dateOfBirth,
+      mobileLast4,
+    },
+    include: patientInclude,
+    orderBy: { createdAt: 'asc' },
+  });
+}
+
 export async function findPatientById(id) {
   return prisma.patient.findUnique({
     where: { id },

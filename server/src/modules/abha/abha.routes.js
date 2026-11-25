@@ -15,6 +15,7 @@ const router = Router();
 
 router.use(authenticate);
 
+router.get('/traces', asyncHandler(abhaController.listTraces));
 router.post('/enrolment/otp', validate(requestOtpSchema), asyncHandler(abhaController.requestOtp));
 router.post('/enrolment/verify', validate(verifyOtpSchema), asyncHandler(abhaController.verifyOtp));
 router.post('/enrolment/mobile/verify', validate(verifyMobileSchema), asyncHandler(abhaController.verifyMobile));

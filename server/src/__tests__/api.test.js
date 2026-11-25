@@ -12,6 +12,50 @@ const { default: app } = await import('../app.js');
 
 const userId = '33333333-3333-4333-8333-333333333333';
 
+const refreshRows = new Map();
+
+function installRefreshStore() {
+  prismaMock.refreshToken.create.mockImplementation(async ({ data }) => {
+    const row = {
+      id: `rt-${refreshRows.size + 1}`,
+      userId: data.userId,
+      tokenHash: data.tokenHash,
+      expiresAt: data.expiresAt,
+      revokedAt: null,
+      user: {
+        id: data.userId,
+        name: 'Demo Staff',
+        email: 'staff@example.com',
+        role: 'STAFF',
+        facilityId: '44444444-4444-4444-8444-444444444444',
+      },
+    };
+    refreshRows.set(data.tokenHash, row);
+    return row;
+  });
+  prismaMock.refreshToken.findUnique.mockImplementation(async ({ where }) => (
+    refreshRows.get(where.tokenHash) ?? null
+  ));
+  prismaMock.refreshToken.updateMany.mockImplementation(async ({ where, data }) => {
+    let count = 0;
+    for (const row of refreshRows.values()) {
+      if (where.id && row.id !== where.id) continue;
+      if (where.userId && row.userId !== where.userId) continue;
+      if (Object.hasOwn(where, 'revokedAt') && where.revokedAt === null && row.revokedAt) continue;
+      Object.assign(row, data);
+      count += 1;
+    }
+    return { count };
+  });
+}
+
+function refreshCookie(res) {
+  const header = res.headers['set-cookie'];
+  const list = Array.isArray(header) ? header : (header ? [header] : []);
+  const raw = list.find((item) => item.startsWith('chip_refresh='));
+  return raw?.split(';')[0] ?? '';
+}
+
 describe('API', () => {
   let passwordHash;
 
@@ -20,7 +64,9 @@ describe('API', () => {
   });
 
   beforeEach(() => {
+    refreshRows.clear();
     resetPrisma();
+    installRefreshStore();
   });
 
   it('reports the database connection on the health check', async () => {
@@ -66,8 +112,76 @@ describe('API', () => {
       role: 'STAFF',
     });
     expect(res.body.data.refreshToken).toBeUndefined();
-    expect(res.headers['set-cookie']).toBeUndefined();
+    expect(refreshCookie(res)).toMatch(/^chip_refresh=/);
     expect(JSON.stringify(res.body)).not.toContain(passwordHash);
+    expect(JSON.stringify(res.body)).not.toContain(refreshCookie(res).split('=')[1]);
+  });
+
+  it('rotates the refresh cookie into a new access token and rejects reuse', async () => {
+    prismaMock.user.findUnique.mockResolvedValue({
+      id: userId,
+      name: 'Demo Staff',
+      email: 'staff@example.com',
+      passwordHash,
+      role: 'STAFF',
+      facilityId: '44444444-4444-4444-8444-444444444444',
+    });
+
+    const loginRes = await request(app).post('/auth/login').send({
+      email: 'staff@example.com',
+      password: 'Staffpass123',
+    });
+    const firstCookie = refreshCookie(loginRes);
+
+    const refreshed = await request(app).post('/auth/refresh').set('Cookie', firstCookie);
+
+    expect(refreshed.status).toBe(200);
+    expect(refreshed.body.data.accessToken).toEqual(expect.any(String));
+    expect(refreshed.body.data.refreshToken).toBeUndefined();
+    expect(refreshCookie(refreshed)).not.toBe(firstCookie);
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        action: 'auth.refresh',
+        outcome: 'success',
+        message: 'Staff Demo Staff received a new access token.',
+      }),
+    }));
+
+    const reused = await request(app).post('/auth/refresh').set('Cookie', firstCookie);
+    expect(reused.status).toBe(401);
+    expect(reused.body.code).toBe('UNAUTHENTICATED');
+  });
+
+  it('rejects refresh when the cookie is missing', async () => {
+    const res = await request(app).post('/auth/refresh');
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe('UNAUTHENTICATED');
+  });
+
+  it('logout revokes the refresh cookie', async () => {
+    prismaMock.user.findUnique.mockResolvedValue({
+      id: userId,
+      name: 'Demo Staff',
+      email: 'staff@example.com',
+      passwordHash,
+      role: 'STAFF',
+      facilityId: '44444444-4444-4444-8444-444444444444',
+    });
+
+    const loginRes = await request(app).post('/auth/login').send({
+      email: 'staff@example.com',
+      password: 'Staffpass123',
+    });
+    const cookie = refreshCookie(loginRes);
+    const loggedOut = await request(app).post('/auth/logout').set('Cookie', cookie);
+
+    expect(loggedOut.status).toBe(200);
+    expect(loggedOut.body.data.loggedOut).toBe(true);
+    expect(loggedOut.headers['set-cookie']?.[0]).toMatch(/chip_refresh=;/);
+
+    const refreshed = await request(app).post('/auth/refresh').set('Cookie', cookie);
+    expect(refreshed.status).toBe(401);
+    expect(refreshed.body.code).toBe('UNAUTHENTICATED');
   });
 
   it('rejects a wrong password', async () => {
@@ -101,10 +215,12 @@ describe('API', () => {
       '/abha/enrolment/verify',
       '/abha/enrolment/{transactionId}/address-suggestions',
       '/abha/enrolment/{transactionId}/card',
+      '/abha/traces',
       '/audit',
       '/auth/login',
       '/auth/logout',
       '/auth/me',
+      '/auth/refresh',
       '/health',
       '/patients',
       '/patients/{id}',

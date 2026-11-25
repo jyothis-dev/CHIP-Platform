@@ -73,6 +73,7 @@ components:
           example: 15m
         user:
           $ref: "#/components/schemas/StaffUser"
+      description: The refresh token is set only as the httpOnly cookie chip_refresh. It is not a response field.
     SessionData:
       type: object
       properties:
@@ -91,28 +92,43 @@ components:
           example: 15m
     EnrolmentOtpRequest:
       type: object
-      required: [patientId, aadhaar]
       properties:
         patientId:
           type: string
           format: uuid
         aadhaar:
           type: string
-          description: 12-digit Aadhaar. Never logged or stored.
+          description: 12-digit Aadhaar for the first send. Never logged or stored.
           example: "000000000000"
+        consentAccepted:
+          type: boolean
+          enum: [true]
+          description: Required on the first send, after the consent screen.
+        resend:
+          type: boolean
+          description: True when resending an OTP for an existing transaction.
+        transactionId:
+          type: string
+          format: uuid
+          description: Required when resend is true.
+        channel:
+          type: string
+          enum: [aadhaar, mobile]
+          description: Required when resend is true.
     EnrolmentVerifyRequest:
       type: object
-      required: [transactionId, otp, consentAccepted]
+      required: [transactionId, otp, mobile, consentAccepted]
       properties:
         transactionId:
           type: string
           format: uuid
         otp:
           type: string
-          description: OTP value. Never logged or stored.
+          description: Six-digit OTP. Never logged or stored.
+          example: "000000"
         mobile:
           type: string
-          description: Optional 10-digit communication mobile.
+          description: Required 10-digit communication mobile. Sent with enrolment and shown on the result.
         consentAccepted:
           type: boolean
           enum: [true]
@@ -135,6 +151,9 @@ components:
         abhaAddress:
           type: string
           example: demo.mother@sbx
+        useExisting:
+          type: boolean
+          description: Keep an address ABDM already holds, without another create call.
     AbhaIdentityView:
       type: object
       properties:
@@ -168,7 +187,7 @@ components:
       properties:
         patientType:
           type: string
-          enum: [MOTHER, CHILD]
+          enum: [MOTHER, CHILD, GENERAL]
         name:
           type: string
           example: Asha Devi
@@ -184,6 +203,9 @@ components:
           type: string
           description: Optional 10-digit mobile. Only last 4 digits are stored.
           example: "9876543210"
+        forceNew:
+          type: boolean
+          description: Register a new patient even when name, gender, date of birth, and mobile last 4 match an existing record.
     PatientView:
       type: object
       properties:
@@ -192,7 +214,7 @@ components:
           format: uuid
         patientType:
           type: string
-          enum: [MOTHER, CHILD]
+          enum: [MOTHER, CHILD, GENERAL]
         name:
           type: string
         gender:
@@ -247,6 +269,37 @@ components:
           format: date-time
         actor:
           $ref: "#/components/schemas/ManagedByStaff"
+    AbdmTraceEntry:
+      type: object
+      description: Development trace of one ABHA call. Aadhaar, OTP, tokens, and login identifiers are replaced with [REDACTED].
+      properties:
+        id:
+          type: string
+          format: uuid
+        method:
+          type: string
+          example: POST
+        path:
+          type: string
+          example: /abha/api/v3/enrollment/request/otp
+        requestId:
+          type: string
+        status:
+          type: integer
+          nullable: true
+        latencyMs:
+          type: integer
+          nullable: true
+        requestBody:
+          nullable: true
+        responseBody:
+          nullable: true
+        errorMessage:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
 paths:
   /health:
     get:
@@ -290,7 +343,7 @@ paths:
               $ref: "#/components/schemas/LoginRequest"
       responses:
         "200":
-          description: Access token and staff profile
+          description: Access token, staff profile, and an httpOnly refresh cookie
           content:
             application/json:
               schema:
@@ -332,14 +385,61 @@ paths:
                 success: false
                 code: RATE_LIMITED
                 message: Too many attempts. Try again later.
+  /auth/refresh:
+    post:
+      summary: Issue a new staff access token
+      parameters:
+        - in: cookie
+          name: chip_refresh
+          required: true
+          schema:
+            type: string
+          description: HttpOnly refresh cookie from login. The value is never returned in JSON.
+      responses:
+        "200":
+          description: New access token. The refresh cookie is replaced.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    required: [accessToken, expiresIn]
+                    properties:
+                      accessToken:
+                        type: string
+                        description: Short-lived JWT. Not included as an example value.
+                      expiresIn:
+                        type: string
+                        example: 15m
+        "401":
+          description: Refresh cookie missing, expired, or already used
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: UNAUTHENTICATED
+                message: Authentication required
   /auth/logout:
     post:
       summary: Staff logout
-      security:
-        - bearerAuth: []
+      parameters:
+        - in: cookie
+          name: chip_refresh
+          required: false
+          schema:
+            type: string
+          description: HttpOnly refresh cookie. Cleared and revoked when present.
       responses:
         "200":
-          description: Session ended
+          description: Session ended and refresh cookie cleared
           content:
             application/json:
               schema:
@@ -355,16 +455,6 @@ paths:
                       loggedOut:
                         type: boolean
                         example: true
-        "401":
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-              example:
-                success: false
-                code: UNAUTHENTICATED
-                message: Authentication required
   /auth/me:
     get:
       summary: Current staff session
@@ -426,6 +516,15 @@ paths:
                       status:
                         type: string
                         example: ACCEPTED
+                      message:
+                        type: string
+                        nullable: true
+                        description: Masked delivery phrase from the OTP response.
+                      otpExpiresAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+                        description: OTP remains valid until this time, 10 minutes after it was sent.
         "400":
           description: Validation failed
           content:
@@ -496,6 +595,37 @@ paths:
                         type: boolean
                       needsMobileVerify:
                         type: boolean
+                      otpExpiresAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+                        description: Present when a communication-mobile OTP was sent. That OTP is valid for 10 minutes.
+                      abhaNumber:
+                        type: string
+                        description: 14-digit ABHA number for the enrolment result screen. Not written to the audit log.
+                      message:
+                        type: string
+                        nullable: true
+                      profile:
+                        type: object
+                        properties:
+                          abhaNumber:
+                            type: string
+                          name:
+                            type: string
+                            nullable: true
+                          dateOfBirth:
+                            type: string
+                            nullable: true
+                          gender:
+                            type: string
+                            nullable: true
+                          mobile:
+                            type: string
+                            nullable: true
+                          address:
+                            type: string
+                            nullable: true
         "400":
           description: Invalid OTP or missing consent
           content:
@@ -628,6 +758,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "409":
+          description: ABHA address is already in use
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: ABHA_ADDRESS_EXISTS
+                message: ABHA address already exists.
         "401":
           description: Authentication required
           content:
@@ -706,7 +846,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
-      summary: Register a mother or child patient
+      summary: Register a mother, child, or general patient
       security:
         - bearerAuth: []
       requestBody:
@@ -741,6 +881,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "409":
+          description: An existing patient matches name, gender, date of birth, and mobile last 4
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: PATIENT_MATCH
+                message: An existing patient matches this name, gender, date of birth, and mobile.
   /patients/{id}:
     get:
       summary: Patient profile summary
@@ -841,6 +991,48 @@ paths:
                 success: false
                 code: PATIENT_NOT_FOUND
                 message: Patient not found
+  /abha/traces:
+    get:
+      summary: Recent ABHA request and response traces
+      description: Available when ABDM_TRACE is on, and by default in development. Bodies are redacted.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Newest ABHA calls, up to 50
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AbdmTraceEntry"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: UNAUTHENTICATED
+                message: Authentication required
+        "404":
+          description: Tracing is off
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: TRACE_DISABLED
+                message: ABHA traffic tracing is off
   /audit:
     get:
       summary: Facility activity log
@@ -913,3 +1105,252 @@ paths:
                 success: false
                 code: UNAUTHENTICATED
                 message: Authentication required
+  /hip/readiness:
+    get:
+      summary: HIP bridge readiness
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: HIP id, callback base, and bridge-services summary
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: UNAUTHENTICATED
+                message: Authentication required
+  /hip/patients/{id}/records:
+    get:
+      summary: Care contexts for one patient
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Visit counts and link status
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Patient was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: PATIENT_NOT_FOUND
+                message: Patient not found
+    post:
+      summary: Save a visit and start linking when the bundle is valid
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [hiType, occurredAt, code, codeDisplay]
+              properties:
+                hiType:
+                  type: string
+                  example: ImmunizationRecord
+                occurredAt:
+                  type: string
+                  example: "2026-03-01T10:00:00.000Z"
+                code:
+                  type: string
+                  example: "111164008"
+                codeDisplay:
+                  type: string
+                  example: Poliomyelitis vaccine
+      responses:
+        "201":
+          description: Record stored
+        "400":
+          description: Invalid record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: VALIDATION_ERROR
+                message: code is required
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /hip/bundles/inspect:
+    post:
+      summary: Validate a FHIR bundle without storing it
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Bundle summary without the bundle body
+        "400":
+          description: Invalid bundle
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /hip/exchanges:
+    get:
+      summary: M2 calls and callbacks grouped by request id
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Exchange timeline. Header values are not included.
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /hip/bridge/url:
+    post:
+      summary: Register ABDM_CALLBACK_BASE_URL on the bridge
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirm]
+              properties:
+                confirm:
+                  type: boolean
+                  enum: [true]
+      responses:
+        "200":
+          description: Bridge URL accepted
+        "400":
+          description: Confirmation missing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: BRIDGE_URL_UNCONFIRMED
+                message: Confirm the current callback base before it is registered
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v3/hip/token/on-generate-token:
+    post:
+      summary: ABDM link-token callback
+      description: Not staff JWT. Requires an ABDM bearer token. HTTP 202 after the event is stored.
+      responses:
+        "202":
+          description: Stored
+        "401":
+          description: Bearer missing or HIP id mismatch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: CALLBACK_UNAUTHENTICATED
+                message: Callback bearer token is required
+  /api/v3/link/on_carecontext:
+    post:
+      summary: ABDM care-context link callback
+      responses:
+        "202":
+          description: Stored
+        "401":
+          description: Bearer missing or HIP id mismatch
+  /api/v3/links/context/on-notify:
+    post:
+      summary: ABDM context notify callback
+      responses:
+        "202":
+          description: Stored
+        "401":
+          description: Bearer missing or HIP id mismatch
+  /api/v3/patients/sms/on-notify:
+    post:
+      summary: ABDM SMS notify callback
+      responses:
+        "202":
+          description: Stored
+        "401":
+          description: Bearer missing or HIP id mismatch
+  /api/v3/hip/patient/care-context/discover:
+    post:
+      summary: ABDM discovery callback
+      responses:
+        "202":
+          description: Stored. A duplicate request id is acknowledged and not processed again.
+        "401":
+          description: Bearer missing or HIP id mismatch
+  /api/v3/hip/link/care-context/init:
+    post:
+      summary: ABDM user-initiated link init
+      responses:
+        "202":
+          description: Stored
+        "401":
+          description: Bearer missing or HIP id mismatch
+  /api/v3/hip/link/care-context/confirm:
+    post:
+      summary: ABDM user-initiated link confirm
+      responses:
+        "202":
+          description: Stored
+        "401":
+          description: Bearer missing or HIP id mismatch
+  /api/v3/consent/request/hip/notify:
+    post:
+      summary: ABDM consent notification to the HIP
+      responses:
+        "202":
+          description: Stored
+        "401":
+          description: Bearer missing or HIP id mismatch
+  /api/v3/hip/health-information/request:
+    post:
+      summary: ABDM health information request to the HIP
+      responses:
+        "202":
+          description: Stored
+        "401":
+          description: Bearer missing or HIP id mismatch

@@ -1,25 +1,72 @@
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../../shared/errors.js';
+import { logger } from '../../shared/logger.js';
 import { logAudit } from '../../shared/audit.js';
 import { getContract } from '../../integrations/abdm/contracts.js';
 import { abdmRequest } from '../../integrations/abdm/client.js';
 import { encryptForAbha } from '../../integrations/abdm/crypto.js';
 import {
+  decryptAbhaNumberAtRest,
   encryptAbhaNumberAtRest,
   hashAbhaNumber,
+  hashMobile,
   maskAbhaNumber,
   currentEncKeyVersion,
 } from './abha.crypto.js';
 import {
   putEnrolmentSession,
   getEnrolmentSession,
-  clearEnrolmentSession,
 } from './enrolmentSession.js';
 import * as repo from './abha.repository.js';
+import {
+  abdmMessage,
+  addressTaken,
+  ADDRESS_EXISTS_MESSAGE,
+  communicationMobileNeedsOtp,
+  displayAbhaNumber,
+  MAX_OTP_RESENDS,
+  OTP_VALID_MS,
+  profileFromEnrolment,
+  RESEND_LIMIT_MESSAGE,
+  abhaAddressRules,
+} from './abhaFlow.js';
+
+function abdmObject(body) {
+  if (body && typeof body === 'object') return body;
+  if (typeof body !== 'string') return null;
+  const trimmed = body.trim();
+  if (!trimmed.startsWith('{')) return null;
+  try {
+    const parsed = JSON.parse(trimmed);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
 
 function abdmErrorCode(body) {
-  const raw = body?.error?.code || body?.code || body?.errorCode || '';
+  const source = abdmObject(body);
+  const raw = source?.error?.code || source?.code || source?.errorCode || '';
   return String(raw).replace(/:\s*$/, '').trim() || 'ABDM_ERROR';
+}
+
+function otpDeadline() {
+  return Date.now() + OTP_VALID_MS;
+}
+
+function assertOtpCurrent(expiresAt) {
+  if (expiresAt != null && expiresAt <= Date.now()) {
+    throw new AppError(400, 'ABHA_OTP_EXPIRED', 'The OTP expired after 10 minutes. Request a new OTP.');
+  }
+}
+
+function refusedOtpDetail(body) {
+  const source = abdmObject(body);
+  const code = abdmErrorCode(source);
+  const message = abdmMessage(source);
+  const knownCode = code !== 'ABDM_ERROR' ? code : null;
+  const text = [knownCode, message].filter(Boolean).join(': ');
+  return { code, message, text };
 }
 
 async function requirePatient(patientId, facilityId) {
@@ -35,6 +82,7 @@ async function requirePatient(patientId, facilityId) {
 
 function extractAbhaNumber(body) {
   return body?.healthIdNumber
+    || body?.ABHAProfile?.ABHANumber
     || body?.ABHANumber
     || body?.abhaNumber
     || body?.accounts?.[0]?.ABHANumber
@@ -53,12 +101,17 @@ function extractTokens(body) {
 export async function requestAadhaarOtp({
   patientId,
   aadhaar,
+  consentAccepted,
   actorId,
+  actorName,
   facilityId,
   correlationId,
   idempotencyKey,
   http,
 }) {
+  if (!consentAccepted) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'ABHA enrolment consent is required');
+  }
   const patient = await requirePatient(patientId, facilityId);
 
   const route = 'POST /abha/enrolment/otp';
@@ -77,7 +130,6 @@ export async function requestAadhaarOtp({
 
   const encryptedAadhaar = await encryptForAbha(aadhaar, { http });
   const contract = getContract('requestAadhaarOtp');
-  const txnSeed = randomUUID();
 
   const transaction = await repo.createTransaction({
     requestId: randomUUID(),
@@ -94,7 +146,7 @@ export async function requestAadhaarOtp({
     contract,
     http,
     body: {
-      txnId: txnSeed,
+      txnId: '',
       scope: contract.scope,
       loginHint: contract.loginHint,
       loginId: encryptedAadhaar,
@@ -103,19 +155,52 @@ export async function requestAadhaarOtp({
   });
 
   if (result.status < 200 || result.status >= 300) {
+    const refused = refusedOtpDetail(result.body);
+    logger.warn({
+      component: 'abha.service',
+      requestId: result.requestId,
+      abdmStatus: result.status,
+      abdmCode: refused.code,
+      abdmMessage: refused.message,
+    }, 'ABDM Aadhaar OTP request refused');
     await repo.updateTransaction(transaction.id, {
       status: 'FAILED',
-      lastErrorCode: abdmErrorCode(result.body),
+      lastErrorCode: refused.code,
+      safeMetadata: { patientId, step: 'request_otp', requestId: result.requestId },
+    });
+    throw new AppError(
+      502,
+      'ABHA_OTP_REQUEST_FAILED',
+      refused.text || 'Could not request Aadhaar OTP',
+    );
+  }
+
+  const externalTxnId = typeof result.body?.txnId === 'string' ? result.body.txnId.trim() : '';
+  if (!externalTxnId) {
+    await repo.updateTransaction(transaction.id, {
+      status: 'FAILED',
+      lastErrorCode: 'ABDM_ERROR',
       safeMetadata: { patientId, step: 'request_otp', requestId: result.requestId },
     });
     throw new AppError(502, 'ABHA_OTP_REQUEST_FAILED', 'Could not request Aadhaar OTP');
   }
-
-  const externalTxnId = result.body?.txnId || txnSeed;
+  const agreedAt = new Date().toISOString();
   await repo.updateTransaction(transaction.id, {
     status: 'ACCEPTED',
     externalTxnId,
-    safeMetadata: { patientId, step: 'request_otp', requestId: result.requestId },
+    safeMetadata: {
+      patientId,
+      step: 'request_otp',
+      requestId: result.requestId,
+      consent: { code: 'abha-enrollment', version: '1.4', agreedAt },
+    },
+  });
+  putEnrolmentSession(transaction.id, {
+    aadhaarCiphertext: encryptedAadhaar,
+    aadhaarTxnId: externalTxnId,
+    aadhaarResendCount: 0,
+    patientId,
+    otpExpiresAt: otpDeadline(),
   });
 
   if (idempotencyKey && idem?.hash) {
@@ -136,10 +221,115 @@ export async function requestAadhaarOtp({
     resourceId: patientId,
     outcome: 'success',
     correlationId: transaction.correlationId,
-    message: `ABHA OTP requested for patient ${patient.name}.`,
+    message: `Staff ${actorName || 'staff'} recorded ABHA enrolment consent for patient ${patient.name}.`,
   });
 
-  return { transactionId: transaction.id, status: 'ACCEPTED' };
+  const issuedAt = getEnrolmentSession(transaction.id)?.otpExpiresAt;
+  return {
+    transactionId: transaction.id,
+    status: 'ACCEPTED',
+    message: abdmMessage(result.body),
+    otpExpiresAt: issuedAt ? new Date(issuedAt).toISOString() : null,
+  };
+}
+
+export async function resendOtp({
+  transactionId,
+  channel,
+  actorId,
+  facilityId,
+  http,
+}) {
+  const transaction = await repo.findTransaction(transactionId);
+  if (!transaction || transaction.workflow !== 'abha.enrol.aadhaar_otp') {
+    throw new AppError(404, 'TRANSACTION_NOT_FOUND', 'Enrolment transaction not found');
+  }
+  const patientId = transaction.safeMetadata?.patientId;
+  const patient = await requirePatient(patientId, facilityId);
+  const session = getEnrolmentSession(transactionId);
+  const countKey = channel === 'mobile' ? 'mobileResendCount' : 'aadhaarResendCount';
+  const used = session?.[countKey] || 0;
+  if (used >= MAX_OTP_RESENDS) {
+    throw new AppError(400, 'OTP_RESEND_LIMIT', RESEND_LIMIT_MESSAGE);
+  }
+
+  const ciphertext = channel === 'mobile' ? session?.mobileCiphertext : session?.aadhaarCiphertext;
+  const txnId = channel === 'mobile' ? session?.mobileTxnId : session?.aadhaarTxnId;
+  if (!session || !ciphertext || !txnId) {
+    throw new AppError(409, 'ABHA_SESSION_EXPIRED', 'Enrolment session expired; request the OTP again');
+  }
+
+  const contract = getContract(channel === 'mobile' ? 'requestMobileOtp' : 'requestAadhaarOtp');
+  const result = await abdmRequest({
+    contract,
+    http,
+    body: {
+      txnId,
+      scope: contract.scope,
+      loginHint: contract.loginHint,
+      loginId: ciphertext,
+      otpSystem: contract.otpSystem,
+    },
+  });
+
+  if (result.status < 200 || result.status >= 300) {
+    throw new AppError(
+      502,
+      'ABHA_OTP_REQUEST_FAILED',
+      abdmMessage(result.body) || 'Could not resend the OTP',
+    );
+  }
+
+  const nextCount = used + 1;
+  const nextTxn = result.body?.txnId || txnId;
+  const expiresAt = otpDeadline();
+  putEnrolmentSession(transactionId, {
+    ...session,
+    [countKey]: nextCount,
+    ...(channel === 'mobile'
+      ? { mobileTxnId: nextTxn, mobileOtpExpiresAt: expiresAt }
+      : { aadhaarTxnId: nextTxn, otpExpiresAt: expiresAt }),
+  });
+  if (channel === 'mobile') {
+    await repo.updateTransaction(transaction.id, {
+      externalTxnId: nextTxn,
+      safeMetadata: {
+        ...transaction.safeMetadata,
+        step: 'mobile_otp_resent',
+        requestId: result.requestId,
+        mobileResendCount: nextCount,
+      },
+    });
+  } else {
+    await repo.updateTransaction(transaction.id, {
+      externalTxnId: nextTxn,
+      safeMetadata: {
+        ...transaction.safeMetadata,
+        step: 'otp_resent',
+        requestId: result.requestId,
+        aadhaarResendCount: nextCount,
+      },
+    });
+  }
+
+  await logAudit({
+    actorId,
+    facilityId,
+    action: 'abha.enrol.otp_resend',
+    resourceType: 'patient',
+    resourceId: patientId,
+    outcome: 'success',
+    correlationId: transaction.correlationId,
+    message: `ABHA OTP resent for patient ${patient.name}.`,
+  });
+
+  return {
+    transactionId: transaction.id,
+    status: 'ACCEPTED',
+    message: abdmMessage(result.body),
+    resendCount: nextCount,
+    otpExpiresAt: new Date(expiresAt).toISOString(),
+  };
 }
 
 export async function verifyAadhaarOtp({
@@ -170,15 +360,9 @@ export async function verifyAadhaarOtp({
   if (!transaction.externalTxnId) {
     throw new AppError(409, 'TRANSACTION_NOT_READY', 'OTP was not requested for this transaction');
   }
+  assertOtpCurrent(getEnrolmentSession(transactionId)?.otpExpiresAt);
 
   const contract = getContract('enrolByAadhaar');
-  if (!contract.benefitName) {
-    throw new AppError(
-      503,
-      'ABDM_BENEFIT_NAME_MISSING',
-      'ABDM benefit name is not configured; enrol cannot proceed',
-    );
-  }
 
   const encryptedOtp = await encryptForAbha(otp, { http });
   const result = await abdmRequest({
@@ -202,8 +386,9 @@ export async function verifyAadhaarOtp({
 
   if (result.status < 200 || result.status >= 300) {
     const code = abdmErrorCode(result.body);
+    const upstream = abdmMessage(result.body) || 'The OTP could not be verified';
     await repo.updateTransaction(transaction.id, {
-      status: 'FAILED',
+      status: 'ACCEPTED',
       lastErrorCode: code,
       safeMetadata: {
         ...transaction.safeMetadata,
@@ -211,8 +396,8 @@ export async function verifyAadhaarOtp({
         requestId: result.requestId,
       },
     });
-    throw new AppError(400, 'ABHA_OTP_INVALID', 'The OTP could not be verified', {
-      details: [{ path: 'otp', message: 'Invalid or expired OTP' }],
+    throw new AppError(400, 'ABHA_OTP_INVALID', upstream, {
+      details: [{ path: 'otp', message: upstream }],
     });
   }
 
@@ -242,13 +427,30 @@ export async function verifyAadhaarOtp({
   });
 
   const { token, refreshToken } = extractTokens(result.body);
+  const profile = profileFromEnrolment(result.body);
+  const shownNumber = profile.abhaNumber || displayAbhaNumber(abhaNumber);
+  if (mobile && /^\d{10}$/.test(mobile)) {
+    profile.mobile = mobile;
+    await repo.updatePatientMobileLast4(patientId, mobile.slice(-4));
+    if (typeof repo.storePatientMobile === 'function') {
+      await repo.storePatientMobile(patientId, {
+        mobileHash: hashMobile(mobile),
+        mobileEnc: encryptAbhaNumberAtRest(mobile),
+      });
+    }
+  }
+  const prior = getEnrolmentSession(transaction.id);
+  const needsMobileVerify = communicationMobileNeedsOtp(result.body, mobile);
   putEnrolmentSession(transaction.id, {
     userToken: token,
     refreshToken,
     abhaNumberMasked: masked,
     externalTxnId: result.body?.txnId || transaction.externalTxnId,
     patientId,
-    needsMobileVerify: Boolean(mobile),
+    needsMobileVerify,
+    aadhaarCiphertext: prior?.aadhaarCiphertext,
+    aadhaarTxnId: prior?.aadhaarTxnId || transaction.externalTxnId,
+    aadhaarResendCount: prior?.aadhaarResendCount || 0,
   });
 
   await repo.updateTransaction(transaction.id, {
@@ -275,40 +477,65 @@ export async function verifyAadhaarOtp({
     message: `ABHA enrolment verified for patient ${patient.name}.`,
   });
 
-  // Request communication mobile OTP when a mobile was supplied.
-  if (mobile) {
+  let mobileMessage = null;
+  if (needsMobileVerify) {
     const mobileContract = getContract('requestMobileOtp');
     const encMobile = await encryptForAbha(mobile, { http });
+    const enrolTxnId = result.body?.txnId || transaction.externalTxnId;
     const mobileResult = await abdmRequest({
       contract: mobileContract,
       http,
       body: {
-        txnId: result.body?.txnId || transaction.externalTxnId,
+        txnId: enrolTxnId,
         scope: mobileContract.scope,
         loginHint: mobileContract.loginHint,
         loginId: encMobile,
         otpSystem: mobileContract.otpSystem,
       },
     });
-    if (mobileResult.status >= 200 && mobileResult.status < 300) {
-      await repo.updateTransaction(transaction.id, {
-        externalTxnId: mobileResult.body?.txnId || transaction.externalTxnId,
-        safeMetadata: {
-          patientId,
-          step: 'mobile_otp_requested',
-          requestId: mobileResult.requestId,
-          isNew,
-          abhaNumberMasked: masked,
-        },
-      });
+    if (mobileResult.status < 200 || mobileResult.status >= 300) {
+      throw new AppError(
+        502,
+        'ABHA_OTP_REQUEST_FAILED',
+        abdmMessage(mobileResult.body) || 'Could not request the mobile OTP',
+      );
     }
+    const mobileTxnId = mobileResult.body?.txnId || enrolTxnId;
+    mobileMessage = abdmMessage(mobileResult.body);
+    const mobileOtpExpiresAt = otpDeadline();
+    const current = getEnrolmentSession(transaction.id);
+    putEnrolmentSession(transaction.id, {
+      ...current,
+      mobileCiphertext: encMobile,
+      mobileTxnId,
+      mobileResendCount: 0,
+      needsMobileVerify: true,
+      mobileOtpExpiresAt,
+    });
+    await repo.updateTransaction(transaction.id, {
+      externalTxnId: mobileTxnId,
+      safeMetadata: {
+        patientId,
+        step: 'mobile_otp_requested',
+        requestId: mobileResult.requestId,
+        isNew,
+        abhaNumberMasked: masked,
+      },
+    });
   }
 
   return {
     status: 'ACCEPTED',
     abhaNumberMasked: masked,
+    abhaNumber: shownNumber,
+    profile: { ...profile, abhaNumber: shownNumber },
     isNew,
-    needsMobileVerify: Boolean(mobile),
+    needsMobileVerify,
+    message: abdmMessage(result.body),
+    mobileMessage,
+    otpExpiresAt: needsMobileVerify
+      ? new Date(getEnrolmentSession(transaction.id)?.mobileOtpExpiresAt).toISOString()
+      : null,
   };
 }
 
@@ -327,6 +554,7 @@ export async function verifyMobileOtp({
   const patient = await requirePatient(patientId, facilityId);
 
   const session = getEnrolmentSession(transactionId);
+  assertOtpCurrent(session?.mobileOtpExpiresAt);
   const contract = getContract('verifyMobileOtp');
   const encryptedOtp = await encryptForAbha(otp, { http });
 
@@ -346,11 +574,14 @@ export async function verifyMobileOtp({
   });
 
   if (result.status < 200 || result.status >= 300) {
+    const upstream = abdmMessage(result.body) || 'The mobile OTP could not be verified';
     await repo.updateTransaction(transaction.id, {
-      status: 'FAILED',
+      status: 'ACCEPTED',
       lastErrorCode: abdmErrorCode(result.body),
     });
-    throw new AppError(400, 'ABHA_OTP_INVALID', 'The mobile OTP could not be verified');
+    throw new AppError(400, 'ABHA_OTP_INVALID', upstream, {
+      details: [{ path: 'otp', message: upstream }],
+    });
   }
 
   if (session) {
@@ -414,6 +645,7 @@ export async function suggestAddress({ transactionId, facilityId, http }) {
 export async function createAddress({
   transactionId,
   abhaAddress,
+  useExisting,
   actorId,
   facilityId,
   http,
@@ -424,6 +656,42 @@ export async function createAddress({
   }
   const patientId = transaction.safeMetadata?.patientId;
   const patient = await requirePatient(patientId, facilityId);
+  const rules = abhaAddressRules(abhaAddress);
+  const wireAddress = rules.wire || abhaAddress;
+
+  if (useExisting) {
+    const identity = await repo.findAbhaIdentity(patientId);
+    if (identity) {
+      await repo.updateAbhaAddress(patientId, {
+        abhaAddress: wireAddress,
+        abhaNumberMasked: identity.abhaNumberMasked,
+      });
+    }
+    await repo.updateTransaction(transaction.id, {
+      status: 'ACCEPTED',
+      safeMetadata: {
+        ...transaction.safeMetadata,
+        step: 'address_existing',
+        abhaAddress: wireAddress,
+      },
+    });
+    await logAudit({
+      actorId,
+      facilityId,
+      action: 'abha.enrol.address',
+      resourceType: 'patient',
+      resourceId: patientId,
+      outcome: 'success',
+      correlationId: transaction.correlationId,
+      message: `Existing ABHA address kept for patient ${patient.name}.`,
+    });
+    return {
+      status: 'ACCEPTED',
+      abhaNumberMasked: transaction.safeMetadata?.abhaNumberMasked || null,
+      abhaAddress: wireAddress,
+      existing: true,
+    };
+  }
 
   const contract = getContract('createAbhaAddress');
   const result = await abdmRequest({
@@ -431,20 +699,36 @@ export async function createAddress({
     http,
     body: {
       txnId: transaction.externalTxnId,
-      abhaAddress,
+      abhaAddress: wireAddress,
       preferred: 1,
     },
   });
 
   if (result.status < 200 || result.status >= 300) {
+    if (addressTaken(result.body)) {
+      await repo.updateTransaction(transaction.id, {
+        status: 'ACCEPTED',
+        lastErrorCode: abdmErrorCode(result.body),
+        safeMetadata: {
+          ...transaction.safeMetadata,
+          step: 'address_taken',
+        },
+      });
+      throw new AppError(409, 'ABHA_ADDRESS_EXISTS', ADDRESS_EXISTS_MESSAGE);
+    }
     await repo.updateTransaction(transaction.id, {
-      status: 'FAILED',
+      status: 'ACCEPTED',
       lastErrorCode: abdmErrorCode(result.body),
     });
-    throw new AppError(400, 'ABHA_ADDRESS_FAILED', 'Could not create the ABHA address');
+    throw new AppError(
+      400,
+      'ABHA_ADDRESS_FAILED',
+      abdmMessage(result.body) || 'Could not create the ABHA address',
+    );
   }
 
-  const preferred = result.body?.preferredAbhaAddress || abhaAddress;
+  const preferred = result.body?.preferredAbhaAddress || wireAddress;
+  const shownNumber = displayAbhaNumber(result.body?.healthIdNumber);
   const masked = result.body?.healthIdNumber
     ? maskAbhaNumber(result.body.healthIdNumber)
     : (transaction.safeMetadata?.abhaNumberMasked || null);
@@ -458,6 +742,7 @@ export async function createAddress({
   }
 
   // Callback requirement UNVERIFIED — stay ACCEPTED until the docs confirm COMPLETED is safe.
+  // Keep the enrolment session so the card can still be fetched with the user token.
   const nextStatus = contract.requiresCallback === false ? 'COMPLETED' : 'ACCEPTED';
   await repo.updateTransaction(transaction.id, {
     status: nextStatus,
@@ -469,8 +754,6 @@ export async function createAddress({
       abhaNumberMasked: masked,
     },
   });
-
-  clearEnrolmentSession(transactionId);
 
   await logAudit({
     actorId,
@@ -486,6 +769,7 @@ export async function createAddress({
   return {
     status: nextStatus,
     abhaNumberMasked: masked,
+    abhaNumber: shownNumber,
     abhaAddress: preferred,
   };
 }
@@ -534,5 +818,26 @@ export async function getAbhaCard({ transactionId, facilityId, http }) {
   return {
     contentType: result.headers?.['content-type'] || 'image/png',
     imageBase64: buffer.toString('base64'),
+  };
+}
+
+export async function demographicsForHipLink({ patientId, facilityId }) {
+  const patient = await repo.findPatientInFacility(patientId, facilityId);
+  if (!patient) throw new AppError(404, 'PATIENT_NOT_FOUND', 'Patient not found');
+  const identity = await repo.findAbhaIdentity(patientId);
+  const yearOfBirth = patient.dateOfBirth
+    ? new Date(patient.dateOfBirth).getUTCFullYear()
+    : null;
+  if (!identity || identity.verificationStatus !== 'VERIFIED' || !identity.abhaAddress) {
+    return { verified: false, patient, yearOfBirth };
+  }
+  return {
+    verified: true,
+    patient,
+    yearOfBirth,
+    abhaAddress: identity.abhaAddress,
+    abhaNumber: decryptAbhaNumberAtRest(identity.abhaNumberEnc),
+    name: patient.name,
+    gender: patient.gender,
   };
 }

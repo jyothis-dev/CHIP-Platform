@@ -52,6 +52,8 @@ npm run dev
 
 From `client/`: `npm run dev` (port 5173) and `npm run build`.
 
+ABHA traffic (`/abha-traffic` in the client, `GET /abha/traces`) records each ABHA request and redacted response while `NODE_ENV=development`. Set `ABDM_TRACE=false` to turn it off, or `ABDM_TRACE=true` to keep it on outside development. Aadhaar numbers, OTPs, and tokens are not stored.
+
 Target, after the Core schema and scripts exist:
 
 ```bash
@@ -64,7 +66,7 @@ cd ../client && npm ci && npm run dev
 Swagger UI for implemented routes: `http://localhost:8000/api-docs`.
 
 ## Callbacks
-1. Start the tunnel: `ngrok http 4000` → set `ABDM_CALLBACK_BASE_URL`. Do not invent a second variable name.
+1. Start the tunnel against the Express port (`8080` unless `PORT` says otherwise): `ngrok http 8080` → set `ABDM_CALLBACK_BASE_URL`. Register it from Health records only after the callback routes exist. `ABDM_HIP_ID` comes from `GET /api/hiecm/gateway/v3/bridge-services`, not from the client-credentials screen and not from gateway v1.
 2. Register or update the callback URL with the sandbox as documented.
 3. Verify with a doc-example fixture: `npm run callback:fixture -- <name>`.
 

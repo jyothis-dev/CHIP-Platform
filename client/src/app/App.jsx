@@ -11,6 +11,8 @@ import './App.css';
 const PatientsPage = lazy(() => import('@/modules/patients/pages/Patients.jsx'));
 const AbhaEnrolmentPage = lazy(() => import('@/modules/abha/pages/AbhaEnrolment.jsx'));
 const ActivityLogPage = lazy(() => import('@/modules/audit/pages/ActivityLog.jsx'));
+const AbhaTrafficPage = lazy(() => import('@/modules/abha/pages/AbhaTraffic.jsx'));
+const HipRecordsPage = lazy(() => import('@/modules/hip/pages/HipRecords.jsx'));
 
 function Guard({ children }) {
   const { user, ready } = useAuth();
@@ -42,7 +44,9 @@ function Shell({ children }) {
           <Link to="/">Dashboard</Link>
           <Link to="/patients">Patients</Link>
           <Link to="/abha">ABHA enrolment</Link>
+          <Link to="/records">Health records</Link>
           <Link to="/activity">Activity log</Link>
+          <Link to="/abha-traffic">ABHA traffic</Link>
         </nav>
         <button
           type="button"
@@ -65,12 +69,14 @@ function Dashboard() {
     <section className="stack">
       <h1>Dashboard</h1>
       <p className="muted">
-        Register a mother or child, select them for ABHA enrolment, and review facility activity in the log.
+        Register a mother, child, or general patient, select them for ABHA enrolment, and review facility activity in the log.
       </p>
       <p className="row">
         <Link className="btn-primary" to="/patients">Register or select patient</Link>
         <Link className="btn" to="/abha">Open ABHA enrolment</Link>
+        <Link className="btn" to="/records">Health records</Link>
         <Link className="btn" to="/activity">View activity log</Link>
+        <Link className="btn" to="/abha-traffic">ABHA traffic</Link>
       </p>
     </section>
   );
@@ -101,6 +107,26 @@ export default function App() {
           <Guard>
             <Shell>
               <LazyPage><AbhaEnrolmentPage /></LazyPage>
+            </Shell>
+          </Guard>
+        )}
+      />
+      <Route
+        path="/abha-traffic"
+        element={(
+          <Guard>
+            <Shell>
+              <LazyPage><AbhaTrafficPage /></LazyPage>
+            </Shell>
+          </Guard>
+        )}
+      />
+      <Route
+        path="/records"
+        element={(
+          <Guard>
+            <Shell>
+              <LazyPage><HipRecordsPage /></LazyPage>
             </Shell>
           </Guard>
         )}

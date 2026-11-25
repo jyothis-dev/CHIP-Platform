@@ -1,7 +1,19 @@
 import { http } from '@/shared/api/http.js';
 
 export function requestOtp({ patientId, aadhaar }) {
-  return http.post('/abha/enrolment/otp', { patientId, aadhaar });
+  return http.post('/abha/enrolment/otp', {
+    patientId,
+    aadhaar,
+    consentAccepted: true,
+  });
+}
+
+export function resendOtp({ transactionId, channel }) {
+  return http.post('/abha/enrolment/otp', {
+    resend: true,
+    transactionId,
+    channel,
+  });
 }
 
 export function verifyOtp(body) {

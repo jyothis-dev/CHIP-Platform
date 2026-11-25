@@ -1,0 +1,43 @@
+.abha-traffic h1 {
+  margin-bottom: 4px;
+}
+
+.abha-traffic code {
+  font-size: 0.85rem;
+}
+
+.trace-table-wrap {
+  overflow-x: auto;
+}
+
+.trace-row {
+  cursor: pointer;
+}
+
+.trace-detail {
+  display: grid;
+  gap: 8px;
+}
+
+.trace-detail h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.trace-detail pre {
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  font-size: 0.82rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@media (max-width: 1024px) {
+  .trace-detail pre {
+    font-size: 0.78rem;
+  }
+}

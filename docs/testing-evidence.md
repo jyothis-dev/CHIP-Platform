@@ -4,7 +4,7 @@
 
 The rows below are planned cases. The Result column stays `not executed` until a command output is pasted here. Do not describe them as passing merely because they are listed.
 
-Shell Jest, executed 2026-11-24 from `server/` with `npm test` (Prisma mocked, not sandbox): 5 suites, 15 passed, 0 failed. Includes health, login, wrong password, error-handler codes, login rate limit, and `GET /api-docs/openapi.json` listing only `/health`, `/auth/login`, `/auth/logout`, and `/auth/me`. Exit code was 0. Those cases are not T1–T22.
+Shell Jest, executed 2026-11-25 from `server/` with `npm test` (Prisma and Axios mocked, not sandbox): 15 suites, 63 passed, 0 failed, 0 skipped. Exit code 0. Includes the first Aadhaar OTP request body, which now sends an empty `txnId`. That run is not a sandbox call.
 
 | # | Test | Type |
 |---|---|---|
@@ -32,11 +32,11 @@ One row per sandbox execution. References are masked (e.g. `txn …a91f`). Scree
 
 | Milestone | Workflow | Date/time (IST) | Environment | Masked request/txn ref | Expected | Actual | Label | Evidence |
 |---|---|---|---|---|---|---|---|---|
-| M1 | ABHA creation (Aadhaar OTP) | 2026-11-25 | local/mock | n/a | ABHA created, masked number shown | Unit/integration tests with mocked Axios only. Live sandbox blocked by missing client ID/secret (known-issues B1) | IMPLEMENTED_NOT_SANDBOX_TESTED | Jest `abha.service.test.js`, `abha.routes.test.js`, `session.test.js`, `client.test.js`, `crypto.test.js` |
+| M1 | ABHA creation (Aadhaar OTP) | 2026-11-25 | local/mock | n/a | ABHA created and the phase-1 screen cases can be exercised | Jest with mocked Axios. The first OTP request body sends an empty `txnId`. A live sandbox OTP call the same day returned HTTP 400 before that correction and has not been repeated. | IMPLEMENTED_NOT_SANDBOX_TESTED | Jest `abha.service.test.js` (`npm test` in `server/`: 15 suites, 63 passed, exit 0) |
 | M1 | ABHA verification/login | | sandbox | | | | PENDING | Out of phase 1 |
-| M2 | FHIR validation | | local | | VALID | | | |
-| M2 | HIP-initiated link + callback | | sandbox | | LINKED after callback | | | |
-| M2 | HI request handled with consent check | | sandbox | | | | | |
+| M2 | FHIR validation | 2026-11-25 | local Jest | mocked | `fhir/bundle.test.js` valid immunization bundle and dangling reference. Not sandbox | IMPLEMENTED_NOT_SANDBOX_TESTED | no | |
+| M2 | HIP-initiated link + callback | 2026-11-25 | local Jest | mocked | Callback without bearer is 401. Duplicate callback returns 202 and does not process again. No sandbox request id | IMPLEMENTED_NOT_SANDBOX_TESTED | no | |
+| M2 | HI request handled with consent check | 2026-11-25 | local Jest | mocked | Missing, expired, and wrong care-context consents are refused before a push. No sandbox request id | IMPLEMENTED_NOT_SANDBOX_TESTED | no | |
 | M3 | Consent request + status callback | | sandbox | | | | | |
 | M3 | Consent GRANTED / DENIED / REVOKED handling | | sandbox | | | | | |
 | M3 | Health information transfer | | sandbox | | | | | |

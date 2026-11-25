@@ -12,6 +12,7 @@ const schema = z.object({
   CORS_ORIGIN: z.string().min(1).default('http://localhost:5173'),
   LOG_LEVEL: z.string().default('info'),
   ACCESS_TOKEN_TTL: z.string().default('15m'),
+  REFRESH_TOKEN_TTL: z.string().regex(/^\d+[smhd]$/).default('7d'),
   ABDM_GATEWAY_BASE_URL: z.string().optional(),
   ABDM_ABHA_BASE_URL: z.string().optional(),
   ABDM_HFR_BASE_URL: z.string().optional(),
@@ -21,9 +22,12 @@ const schema = z.object({
   ABDM_CLIENT_SECRET: z.string().optional(),
   ABDM_CM_ID: z.string().optional().default('sbx'),
   ABDM_BENEFIT_NAME: z.string().optional(),
+  ABDM_HIP_ID: z.string().optional(),
+  ABDM_CALLBACK_BASE_URL: z.string().optional(),
   ABHA_ENC_KEY: z.string().optional(),
   ABHA_HASH_KEY: z.string().optional(),
   ABHA_ENC_KEY_VERSION: z.coerce.number().int().positive().optional().default(1),
+  ABDM_TRACE: z.string().optional(),
 });
 
 const parsed = schema.safeParse(process.env);
@@ -46,6 +50,15 @@ function blankToNull(value) {
 
 const abdm = abdmBaseUrlConfig(parsed.data);
 
+function traceFlag(value) {
+  const text = String(value ?? '').trim().toLowerCase();
+  if (text === 'true' || text === '1') return true;
+  if (text === 'false' || text === '0') return false;
+  return null;
+}
+
+const traceOverride = traceFlag(parsed.data.ABDM_TRACE);
+
 export const env = {
   nodeEnv: parsed.data.NODE_ENV,
   port: parsed.data.PORT,
@@ -54,6 +67,7 @@ export const env = {
   corsOrigin: parsed.data.CORS_ORIGIN,
   logLevel: parsed.data.LOG_LEVEL,
   accessTokenTtl: parsed.data.ACCESS_TOKEN_TTL,
+  refreshTokenTtl: parsed.data.REFRESH_TOKEN_TTL,
   abdmGatewayBaseUrl: abdm.abdmGatewayBaseUrl,
   abdmAbhaBaseUrl: abdm.abdmAbhaBaseUrl,
   abdmHfrBaseUrl: abdm.abdmHfrBaseUrl,
@@ -63,7 +77,10 @@ export const env = {
   abdmClientSecret: blankToNull(parsed.data.ABDM_CLIENT_SECRET),
   abdmCmId: blankToNull(parsed.data.ABDM_CM_ID) || 'sbx',
   abdmBenefitName: blankToNull(parsed.data.ABDM_BENEFIT_NAME),
+  abdmHipId: blankToNull(parsed.data.ABDM_HIP_ID),
+  abdmCallbackBaseUrl: blankToNull(parsed.data.ABDM_CALLBACK_BASE_URL),
   abhaEncKey: blankToNull(parsed.data.ABHA_ENC_KEY),
   abhaHashKey: blankToNull(parsed.data.ABHA_HASH_KEY),
   abhaEncKeyVersion: parsed.data.ABHA_ENC_KEY_VERSION,
+  abdmTraceEnabled: traceOverride ?? parsed.data.NODE_ENV === 'development',
 };

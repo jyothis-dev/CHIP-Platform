@@ -1,5 +1,6 @@
 import { AppError } from '../../shared/errors.js';
 import { logAudit } from '../../shared/audit.js';
+import { encryptAbhaNumberAtRest, hashMobile } from '../abha/abha.crypto.js';
 import * as repo from './patients.repository.js';
 
 function toManagedBy(user) {
@@ -69,9 +70,32 @@ export async function createPatient({
   gender,
   dateOfBirth,
   mobile,
+  forceNew,
   correlationId,
 }) {
   const mobileLast4 = mobile ? mobile.slice(-4) : null;
+  if (!forceNew && name && gender && dateOfBirth && mobileLast4) {
+    const existing = await repo.findMatchingPatient({
+      facilityId,
+      name: name.trim(),
+      gender,
+      dateOfBirth: new Date(dateOfBirth),
+      mobileLast4,
+    });
+    if (existing) {
+      throw new AppError(
+        409,
+        'PATIENT_MATCH',
+        'An existing patient matches this name, gender, date of birth, and mobile.',
+        {
+          details: [
+            { path: 'existingPatientId', message: existing.id },
+            { path: 'existingPatientName', message: existing.name },
+          ],
+        },
+      );
+    }
+  }
   const patient = await repo.createPatient({
     facilityId,
     registeredByUserId: actorId,
@@ -80,6 +104,9 @@ export async function createPatient({
     gender,
     dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
     mobileLast4,
+    ...(mobile
+      ? { mobileHash: hashMobile(mobile), mobileEnc: encryptAbhaNumberAtRest(mobile) }
+      : {}),
   });
 
   await logAudit({

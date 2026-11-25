@@ -16,7 +16,8 @@ router.post(
   asyncHandler(authController.login),
 );
 
-router.post('/logout', sessionLimiter, authenticate, asyncHandler(authController.logout));
+router.post('/refresh', sessionLimiter, asyncHandler(authController.refresh));
+router.post('/logout', sessionLimiter, asyncHandler(authController.logout));
 router.get('/me', authenticate, authController.me);
 
 export default router;

@@ -27,6 +27,7 @@ jest.unstable_mockModule('./abha.service.js', () => ({
 }));
 
 process.env.NODE_ENV = 'test';
+process.env.ABDM_TRACE = 'false';
 process.env.DATABASE_URL = 'postgresql://test:test@127.0.0.1:5432/chip_test?sslmode=disable';
 process.env.JWT_ACCESS_SECRET = 'test-access-secret-32-characters-min';
 process.env.CORS_ORIGIN = 'http://localhost:5173';
@@ -103,7 +104,7 @@ describe('ABHA routes', () => {
     const res = await request(app)
       .post('/abha/enrolment/otp')
       .set('Authorization', `Bearer ${token}`)
-      .send({ patientId, aadhaar: '999999999999' });
+      .send({ patientId, aadhaar: '999999999999', consentAccepted: true });
     expect(res.status).toBe(403);
     expect(res.body.code).toBe('FORBIDDEN');
   });
@@ -116,9 +117,66 @@ describe('ABHA routes', () => {
     const res = await request(app)
       .post('/abha/enrolment/otp')
       .set('Authorization', `Bearer ${token}`)
-      .send({ patientId, aadhaar: '999999999999' });
+      .send({ patientId, aadhaar: '999999999999', consentAccepted: true });
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
     expect(res.body.data.status).toBe('ACCEPTED');
+  });
+
+  it('returns the Aadhaar validation message and does not call the service', async () => {
+    const res = await request(app)
+      .post('/abha/enrolment/otp')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ patientId, aadhaar: '12345', consentAccepted: true });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe('VALIDATION_ERROR');
+    expect(res.body.message).toContain('Aadhaar Number is not valid');
+    expect(mockRequestOtp).not.toHaveBeenCalled();
+  });
+
+  it('rejects an OTP that is not 6 digits', async () => {
+    const res = await request(app)
+      .post('/abha/enrolment/verify')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        transactionId: '55555555-5555-4555-8555-555555555555',
+        otp: '1234',
+        mobile: '9999991234',
+        consentAccepted: true,
+      });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe('VALIDATION_ERROR');
+    expect(res.body.message).toContain('OTP must be 6 digits');
+    expect(mockVerifyOtp).not.toHaveBeenCalled();
+  });
+
+  it('requires a 10-digit mobile before enrolment OTP can be verified', async () => {
+    const res = await request(app)
+      .post('/abha/enrolment/verify')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        transactionId: '55555555-5555-4555-8555-555555555555',
+        otp: '123456',
+        consentAccepted: true,
+      });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe('VALIDATION_ERROR');
+    expect(res.body.message).toMatch(/mobile/i);
+    expect(mockVerifyOtp).not.toHaveBeenCalled();
+  });
+
+  it('hides ABHA traffic when tracing is off', async () => {
+    const res = await request(app)
+      .get('/abha/traces')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe('TRACE_DISABLED');
+  });
+
+  it('requires authentication to read ABHA traffic', async () => {
+    const res = await request(app).get('/abha/traces');
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe('UNAUTHENTICATED');
   });
 });

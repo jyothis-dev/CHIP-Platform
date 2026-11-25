@@ -1,0 +1,61 @@
+.hip-page h2 {
+  margin: 8px 0;
+}
+
+.hip-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space);
+}
+
+.hip-field {
+  display: grid;
+  gap: 6px;
+}
+
+.hip-preview {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  overflow: auto;
+  max-height: 280px;
+}
+
+.hip-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.hip-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+}
+
+.hip-readiness {
+  display: grid;
+  gap: 8px;
+}
+
+.text-input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 8px 10px;
+}
+
+@media (max-width: 1024px) {
+  .hip-grid {
+    grid-template-columns: 1fr;
+  }
+}

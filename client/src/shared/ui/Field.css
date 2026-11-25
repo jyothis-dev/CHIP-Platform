@@ -1,0 +1,9 @@
+.ui-field-error {
+  color: var(--danger);
+  font-size: 0.85rem;
+}
+
+.ui-field input[aria-invalid='true'],
+.ui-field select[aria-invalid='true'] {
+  border-color: var(--danger);
+}

@@ -1,25 +1,36 @@
 ---
-description: Audit domain activity without storing secrets
+description: Centralized AuditLog for every mutating API, with human-readable messages
 alwaysApply: true
 ---
 
 # Audit logs
 
-Write activity through `logAudit` in `server/src/shared/audit.js`. Do not scatter `console.log` for audit history.
+Write domain activity only through `logAudit` in `server/src/shared/audit.js`. Do not scatter `console.log` for audit history. Do not create a parallel audit table or HTTP access-log substitute.
 
-After a successful state change, and after a denied login or permission check, write one record: `actorId`, `action`, `resourceType`, `resourceId`, `facilityId`, `outcome`, `correlationId`. Cover staff login and logout, and later mother, child, immunization encounter, and ABDM transaction changes when those flows exist. Pregnancy is out of the current build.
+## When to write
 
-- Call `logAudit()` from the service after the write commits. Do not audit inside the UI.
-- Store structured fields, not free-text dumps of `req.body`.
-- Never store passwords, access tokens, refresh tokens, OTPs, Aadhaar numbers, or raw clinical payloads.
+After a successful state change, and after a denied login or permission check, write one record from the **service** (or auth middleware on denial). Controllers and the UI must not write audit rows.
+
+Cover every mutating API: staff login and logout, patient create/update/status change, ABHA enrolment steps, permission denials, and later mother/child, immunization encounter, and ABDM transaction changes when those flows exist. Pregnancy is out of the current build.
+
+## Required fields
+
+`actorId`, `action`, `resourceType`, `resourceId`, `facilityId`, `outcome` (`success` | `denied` | `failure`), `correlationId`, and **`message`**.
+
+- Action naming: `domain.verb` (e.g. `auth.login`, `patient.create`, `abha.enrol.otp_request`).
+- Store structured fields only — not free-text dumps of `req.body`.
+- Never store passwords, access tokens, refresh tokens, OTPs, Aadhaar numbers, full mobile numbers, or raw clinical / ABDM payloads.
 - Keep the resource id so the record can still be traced.
-- Per-request HTTP rows are not stored. The transaction monitor will record ABDM callbacks when that flow exists.
+
+## Human-readable `message`
+
+Every `logAudit` call must include a short, staff-facing sentence of what happened (or why it failed). Past tense. Safe identifiers only (patient name, staff name, resource id).
 
 ```js
 // ❌ BAD
 console.log('staff logged in', req.body);
 
-// ✅ GOOD
+// ❌ BAD — missing message
 await logAudit({
   actorId: user.id,
   action: 'auth.login',
@@ -28,4 +39,28 @@ await logAudit({
   outcome: 'success',
   correlationId: req.id,
 });
+
+// ✅ GOOD
+await logAudit({
+  actorId: user.id,
+  action: 'auth.login',
+  resourceType: 'user',
+  resourceId: user.id,
+  facilityId: user.facilityId,
+  outcome: 'success',
+  correlationId: req.id,
+  message: `Staff ${user.name} logged in successfully.`,
+});
 ```
+
+Good message examples: `"Registered CHILD patient Ravi Kumar (managed by Demo Staff)."`, `"ABHA OTP requested for patient Asha Devi."`, `"Login denied: invalid credentials."`
+
+## Read path
+
+Facility-scoped `GET /audit` and the Activity Log UI are the viewer. Show **message** as the primary readable column. Audit rows are append-only — no update or delete APIs.
+
+## New route checklist
+
+When adding a mutating route: call `logAudit` with `action`, `outcome`, and `message`; update OpenAPI; add a Jest assertion that `logAudit` was called with those fields (or assert the persisted row).
+
+HTTP `requestLogger` is operational only; it does not replace `AuditLog`.

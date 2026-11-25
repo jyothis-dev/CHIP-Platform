@@ -11,8 +11,12 @@ export function authorize(...roles) {
           action: 'auth.permission_denied',
           resourceType: 'user',
           resourceId: req.auth?.userId ?? null,
+          facilityId: req.auth?.facilityId ?? null,
           outcome: 'denied',
           correlationId: req.id,
+          message: req.auth?.name
+            ? `Permission denied for staff ${req.auth.name} (${role || 'unknown role'}).`
+            : 'Permission denied for this action.',
         });
         throw new AppError(403, 'PERMISSION_DENIED', 'You do not have permission for this action');
       }

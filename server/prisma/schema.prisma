@@ -5,17 +5,20 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  schemas  = ["public", "chip"]
 }
 
 enum UserRole {
   ADMIN
   CLINICIAN
   STAFF
+  @@schema("chip")
 }
 
 enum PatientType {
   MOTHER
   CHILD
+  @@schema("chip")
 }
 
 enum EncounterType {
@@ -23,12 +26,14 @@ enum EncounterType {
   DELIVERY
   CHILD_FOLLOW_UP
   IMMUNIZATION
+  @@schema("chip")
 }
 
 enum ValidationStatus {
   VALID
   INVALID
   UNVERIFIED
+  @@schema("chip")
 }
 
 enum ConsentStatus {
@@ -37,11 +42,13 @@ enum ConsentStatus {
   DENIED
   EXPIRED
   REVOKED
+  @@schema("chip")
 }
 
 enum ExchangeRole {
   HIU
   HIP
+  @@schema("chip")
 }
 
 enum LinkStatus {
@@ -49,6 +56,7 @@ enum LinkStatus {
   LINK_REQUESTED
   LINKED
   FAILED
+  @@schema("chip")
 }
 
 enum Milestone {
@@ -56,16 +64,19 @@ enum Milestone {
   M2
   M3
   M4
+  @@schema("chip")
 }
 
 enum TransactionDirection {
   OUTBOUND
   INBOUND
+  @@schema("chip")
 }
 
 enum TransferDirection {
   PUSH
   RECEIVE
+  @@schema("chip")
 }
 
 enum CallbackProcessingStatus {
@@ -75,24 +86,27 @@ enum CallbackProcessingStatus {
   ORPHANED
   RETRY
   DEAD
+  @@schema("chip")
 }
 
 model User {
-  id              String           @id @default(uuid())
-  name            String
-  email           String           @unique
-  passwordHash    String
-  role            UserRole
-  facilityId      String
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  facility        Facility         @relation(fields: [facilityId], references: [id])
-  practitioners   Practitioner[]
-  idempotencyKeys IdempotencyKey[]
-  auditLogs       AuditLog[]
+  id                 String           @id @default(uuid())
+  name               String
+  email              String           @unique
+  passwordHash       String
+  role               UserRole
+  facilityId         String
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  facility           Facility         @relation(fields: [facilityId], references: [id])
+  practitioners      Practitioner[]
+  idempotencyKeys    IdempotencyKey[]
+  auditLogs          AuditLog[]
+  registeredPatients Patient[]        @relation("PatientRegisteredBy")
 
   @@index([facilityId])
   @@map("users")
+  @@schema("chip")
 }
 
 model Facility {
@@ -111,6 +125,7 @@ model Facility {
   auditLogs     AuditLog[]
 
   @@map("facilities")
+  @@schema("chip")
 }
 
 model Practitioner {
@@ -128,30 +143,35 @@ model Practitioner {
 
   @@index([facilityId])
   @@map("practitioners")
+  @@schema("chip")
 }
 
 model Patient {
-  id               String                    @id @default(uuid())
-  facilityId       String
-  patientType      PatientType
-  name             String
-  gender           String
-  dateOfBirth      DateTime?                 @db.Date
-  mobileLast4      String?                   @db.VarChar(4)
-  createdAt        DateTime                  @default(now())
-  updatedAt        DateTime                  @updatedAt
-  facility         Facility                  @relation(fields: [facilityId], references: [id])
-  asMother         MotherChildRelationship[] @relation("Mother")
-  asChild          MotherChildRelationship[] @relation("Child")
-  pregnancies      Pregnancy[]
-  encounters       Encounter[]
-  abhaIdentity     ABHAIdentity?
-  healthRecords    HealthRecord[]
-  careContexts     CareContext[]
+  id                 String                    @id @default(uuid())
+  facilityId         String
+  patientType        PatientType
+  name               String
+  gender             String
+  dateOfBirth        DateTime?                 @db.Date
+  mobileLast4        String?                   @db.VarChar(4)
+  registeredByUserId String?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  facility           Facility                  @relation(fields: [facilityId], references: [id])
+  registeredBy       User?                     @relation("PatientRegisteredBy", fields: [registeredByUserId], references: [id])
+  asMother           MotherChildRelationship[] @relation("Mother")
+  asChild            MotherChildRelationship[] @relation("Child")
+  pregnancies        Pregnancy[]
+  encounters         Encounter[]
+  abhaIdentity       ABHAIdentity?
+  healthRecords      HealthRecord[]
+  careContexts       CareContext[]
 
   @@index([facilityId])
   @@index([facilityId, name])
+  @@index([registeredByUserId])
   @@map("patients")
+  @@schema("chip")
 }
 
 model MotherChildRelationship {
@@ -166,6 +186,7 @@ model MotherChildRelationship {
 
   @@unique([motherPatientId, childPatientId])
   @@map("mother_child_relationships")
+  @@schema("chip")
 }
 
 model Pregnancy {
@@ -181,6 +202,7 @@ model Pregnancy {
 
   @@index([motherPatientId])
   @@map("pregnancies")
+  @@schema("chip")
 }
 
 model Encounter {
@@ -201,6 +223,7 @@ model Encounter {
   @@index([patientId])
   @@index([facilityId])
   @@map("encounters")
+  @@schema("chip")
 }
 
 model ABHAIdentity {
@@ -219,6 +242,7 @@ model ABHAIdentity {
   patient            Patient   @relation(fields: [patientId], references: [id])
 
   @@map("abha_identities")
+  @@schema("chip")
 }
 
 model HealthRecord {
@@ -239,6 +263,7 @@ model HealthRecord {
 
   @@index([patientId])
   @@map("health_records")
+  @@schema("chip")
 }
 
 model CareContext {
@@ -261,6 +286,7 @@ model CareContext {
 
   @@unique([facilityId, referenceNumber])
   @@map("care_contexts")
+  @@schema("chip")
 }
 
 model ConsentRequest {
@@ -281,6 +307,7 @@ model ConsentRequest {
 
   @@index([externalConsentRequestId])
   @@map("consent_requests")
+  @@schema("chip")
 }
 
 model ConsentArtefact {
@@ -304,6 +331,7 @@ model ConsentArtefact {
 
   @@unique([role, externalArtefactId])
   @@map("consent_artefacts")
+  @@schema("chip")
 }
 
 model HealthInformationRequest {
@@ -320,6 +348,7 @@ model HealthInformationRequest {
   dataTransfers         DataTransfer[]
 
   @@map("health_information_requests")
+  @@schema("chip")
 }
 
 model DataTransfer {
@@ -344,6 +373,7 @@ model DataTransfer {
   careContext                CareContext              @relation(fields: [careContextId], references: [id])
 
   @@map("data_transfers")
+  @@schema("chip")
 }
 
 model ABDMTransaction {
@@ -372,6 +402,7 @@ model ABDMTransaction {
   @@index([correlationId])
   @@index([status, nextAttemptAt])
   @@map("abdm_transactions")
+  @@schema("chip")
 }
 
 model CallbackEvent {
@@ -392,6 +423,7 @@ model CallbackEvent {
   @@unique([route, dedupKey])
   @@index([transactionId])
   @@map("callback_events")
+  @@schema("chip")
 }
 
 model IdempotencyKey {
@@ -408,6 +440,7 @@ model IdempotencyKey {
 
   @@unique([key, userId, route])
   @@map("idempotency_keys")
+  @@schema("chip")
 }
 
 model AuditLog {
@@ -418,6 +451,7 @@ model AuditLog {
   resourceId    String?
   facilityId    String?
   outcome       String
+  message       String
   correlationId String?
   ip            String?
   createdAt     DateTime  @default(now())
@@ -427,4 +461,5 @@ model AuditLog {
   @@index([facilityId, createdAt])
   @@index([correlationId])
   @@map("audit_logs")
+  @@schema("chip")
 }

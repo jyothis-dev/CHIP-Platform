@@ -10,6 +10,9 @@ import { requestLogger } from './middleware/requestLogger.js';
 import { notFound } from './middleware/notFound.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import authRoutes from './modules/auth/auth.routes.js';
+import abhaRoutes from './modules/abha/abha.routes.js';
+import patientsRoutes from './modules/patients/patients.routes.js';
+import auditRoutes from './modules/audit/audit.routes.js';
 import { mountSwagger } from './docs/swagger.js';
 
 const app = express();
@@ -31,6 +34,9 @@ app.get('/health', asyncHandler(async (_req, res) => {
 }));
 
 app.use('/auth', authRoutes);
+app.use('/abha', abhaRoutes);
+app.use('/patients', patientsRoutes);
+app.use('/audit', auditRoutes);
 mountSwagger(app);
 
 app.use(notFound);

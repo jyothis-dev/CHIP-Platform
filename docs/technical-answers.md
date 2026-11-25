@@ -35,7 +35,7 @@ Not implemented. There is no consent guard and no T9 run. Intended design: one c
 Not implemented for ABDM fields. Pino today redacts password, passwordHash, refreshToken, token, authorization, and cookie (`server/src/shared/logger.js`). It does not yet redact Aadhaar, OTP, or ABHA. T12 has not been written or run. Intended design: extend that redact list, and do not log ABDM request or response bodies. The error handler already hides unexpected error details from the client. The error-handler Jest case has been run. That case is not T12.
 
 ### 9. How have you implemented audit trails and transaction tracking?
-Partly implemented for login only. `logAudit` in `server/src/shared/audit.js` writes actor, action, resource, outcome, and correlation id after login and logout. There is no transaction monitor UI, no callback processor, and no proof that every future state change is audited. Append-only is an application convention, not a database guarantee. Intended design: one `ABDMTransaction` per outbound operation, internal status separate from `externalStatus`, and `CallbackEvent` rows for the timeline.
+`logAudit` in `server/src/shared/audit.js` writes actor, action, resource, outcome, correlation id, and a staff-facing `message` after login/logout, patient create, ABHA enrolment steps, and auth denials. Facility-scoped `GET /audit` and the Activity Log page list those rows. There is still no transaction monitor UI and no callback processor. Append-only is an application convention, not a database guarantee. Intended design: one `ABDMTransaction` per outbound operation, internal status separate from `externalStatus`, and `CallbackEvent` rows for the timeline.
 
 ## AI-assisted development
 

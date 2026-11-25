@@ -94,7 +94,22 @@ describe('API', () => {
     const res = await request(app).get('/api-docs/openapi.json');
 
     expect(res.status).toBe(200);
-    expect(Object.keys(res.body.paths).sort()).toEqual(['/auth/login', '/auth/logout', '/auth/me', '/health']);
+    expect(Object.keys(res.body.paths).sort()).toEqual([
+      '/abha/enrolment/address',
+      '/abha/enrolment/mobile/verify',
+      '/abha/enrolment/otp',
+      '/abha/enrolment/verify',
+      '/abha/enrolment/{transactionId}/address-suggestions',
+      '/abha/enrolment/{transactionId}/card',
+      '/audit',
+      '/auth/login',
+      '/auth/logout',
+      '/auth/me',
+      '/health',
+      '/patients',
+      '/patients/{id}',
+      '/patients/{id}/abha',
+    ]);
     expect(res.body.paths['/auth/me'].get.security).toEqual([{ bearerAuth: [] }]);
     expect(res.body.paths['/auth/login'].post.security).toBeUndefined();
     expect(JSON.stringify(res.body)).not.toMatch(/eyJ/);

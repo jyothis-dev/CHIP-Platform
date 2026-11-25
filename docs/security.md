@@ -50,7 +50,7 @@ Any failure → reject, audit with a reason code, no data. Unit tests cover each
 - Cryptography follows the official algorithm and sample code only. It is reviewed manually, and the review is recorded in `docs/ai-usage.md`.
 
 ## Audit
-Append-only `AuditLog`: actor, facility, action, resource type and ID, outcome, correlationId, timestamp. Covers logins, patient access, ABHA operations, link requests, consent changes, data release or receipt, and registry linking. No secrets or clinical payloads.
+Append-only `AuditLog`: actor, facility, action, resource type and ID, outcome, human-readable `message`, correlationId, timestamp. Covers logins, patient registration, ABHA operations, permission denials, and later link requests, consent changes, data release or receipt, and registry linking. Facility staff can read their facility trail via `GET /audit`. No secrets or clinical payloads in audit rows. Rule: `.cursor/rules/audit-logs.mdc`.
 
 ## Supply chain and testing
 - `npm audit` / `osv-scanner` in CI, lockfiles committed.

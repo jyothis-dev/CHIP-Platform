@@ -197,9 +197,13 @@ server/src/
   jobs/sweeper.js        # retries, callback deadlines, consent expiry
   shared/ errors/ validation/ logging/
 prisma/schema.prisma
-client/                  # React + Vite
+client/                  # React + Vite modular monolith
+  src/app/               # routes, providers, ErrorBoundary
+  src/modules/           # auth, patients, abha, audit (api / hooks / pages / validation)
+  src/shared/            # Axios http client, TanStack Query, UI primitives, styles
 ```
 
+The React client is a modular monolith aligned with backend domains. Feature modules own their API clients, React Query hooks, Zod form schemas, and pages. Shared Axios unwraps `{ success, data }`, maps `ApiError`, and clears session on 401. TanStack Query holds server state; auth session uses `['auth','me']`. Custom CSS tokens live in `shared/styles`. This is a structure and client-hardening change only (`IMPLEMENTED_NOT_SANDBOX_TESTED`).
 
 ## Facility / bridge / role configuration
 

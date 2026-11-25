@@ -11,6 +11,7 @@ export async function logAudit(entry) {
         resourceId: entry.resourceId ?? null,
         facilityId: entry.facilityId ?? null,
         outcome: entry.outcome,
+        message: entry.message,
         correlationId: entry.correlationId ?? null,
       },
     });

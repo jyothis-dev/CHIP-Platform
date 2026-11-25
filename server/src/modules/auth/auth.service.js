@@ -25,8 +25,12 @@ export async function login(input, ctx) {
       action: 'auth.login',
       resourceType: 'user',
       resourceId: user?.id ?? null,
+      facilityId: user?.facilityId ?? null,
       outcome: 'denied',
       correlationId: ctx.requestId,
+      message: user
+        ? `Login denied for staff ${user.name}: invalid credentials.`
+        : 'Login denied: invalid credentials.',
     });
     throw new AppError(401, 'INVALID_CREDENTIALS', 'Invalid email or password');
   }
@@ -36,8 +40,10 @@ export async function login(input, ctx) {
     action: 'auth.login',
     resourceType: 'user',
     resourceId: user.id,
+    facilityId: user.facilityId,
     outcome: 'success',
     correlationId: ctx.requestId,
+    message: `Staff ${user.name} logged in successfully.`,
   });
 
   return {
@@ -53,8 +59,12 @@ export async function logout(auth, ctx) {
     action: 'auth.logout',
     resourceType: 'user',
     resourceId: auth?.userId ?? null,
+    facilityId: auth?.facilityId ?? null,
     outcome: 'success',
     correlationId: ctx.requestId,
+    message: auth?.name
+      ? `Staff ${auth.name} logged out.`
+      : 'Staff logged out.',
   });
 }
 

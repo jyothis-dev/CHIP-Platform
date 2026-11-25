@@ -13,6 +13,7 @@ export async function authenticate(req, _res, next) {
         resourceType: 'user',
         outcome: 'denied',
         correlationId: req.id,
+        message: 'Access denied: authentication required.',
       });
       throw new AppError(401, 'UNAUTHENTICATED', 'Authentication required');
     }
@@ -26,6 +27,7 @@ export async function authenticate(req, _res, next) {
         resourceType: 'user',
         outcome: 'denied',
         correlationId: req.id,
+        message: 'Access denied: invalid or expired access token.',
       });
       throw new AppError(401, 'UNAUTHENTICATED', 'Authentication required', { cause: err });
     }
@@ -39,6 +41,7 @@ export async function authenticate(req, _res, next) {
         resourceId: payload.sub,
         outcome: 'denied',
         correlationId: req.id,
+        message: 'Access denied: staff account no longer exists.',
       });
       throw new AppError(401, 'UNAUTHENTICATED', 'Authentication required');
     }
@@ -48,6 +51,7 @@ export async function authenticate(req, _res, next) {
       email: user.email,
       name: user.name,
       role: user.role,
+      facilityId: user.facilityId,
     };
     next();
   } catch (err) {

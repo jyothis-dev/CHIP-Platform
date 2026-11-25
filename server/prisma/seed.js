@@ -19,10 +19,30 @@ async function main() {
     facility = await prisma.facility.create({ data: { name: facilityName } });
   }
 
-  await prisma.user.upsert({
+  const user = await prisma.user.upsert({
     where: { email },
     update: { name, passwordHash, role: 'STAFF', facilityId: facility.id },
     create: { name, email, passwordHash, role: 'STAFF', facilityId: facility.id },
+  });
+
+  const demoPatientId = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+  await prisma.patient.upsert({
+    where: { id: demoPatientId },
+    update: {
+      facilityId: facility.id,
+      name: 'Demo Mother',
+      registeredByUserId: user.id,
+    },
+    create: {
+      id: demoPatientId,
+      facilityId: facility.id,
+      patientType: 'MOTHER',
+      name: 'Demo Mother',
+      gender: 'F',
+      dateOfBirth: new Date('1995-01-15'),
+      mobileLast4: '0000',
+      registeredByUserId: user.id,
+    },
   });
 }
 

@@ -1,6 +1,9 @@
-CREATE TABLE "health_information_requests" (
+-- CHIP tables live in schema "chip" to avoid colliding with other apps on shared defaultdb.
+CREATE SCHEMA IF NOT EXISTS "chip";
+
+CREATE TABLE "chip"."health_information_requests" (
     "id" TEXT NOT NULL,
-    "role" "ExchangeRole" NOT NULL,
+    "role" "chip"."ExchangeRole" NOT NULL,
     "consentArtefactId" TEXT NOT NULL,
     "externalTransactionId" TEXT,
     "dataPushUrl" TEXT,
@@ -12,7 +15,7 @@ CREATE TABLE "health_information_requests" (
     CONSTRAINT "health_information_requests_pkey" PRIMARY KEY ("id")
 );
 
-ALTER TABLE "health_information_requests"
+ALTER TABLE "chip"."health_information_requests"
   ADD CONSTRAINT "health_information_requests_consentArtefactId_fkey"
-  FOREIGN KEY ("consentArtefactId") REFERENCES "consent_artefacts"("id")
+  FOREIGN KEY ("consentArtefactId") REFERENCES "chip"."consent_artefacts"("id")
   ON DELETE RESTRICT ON UPDATE CASCADE;

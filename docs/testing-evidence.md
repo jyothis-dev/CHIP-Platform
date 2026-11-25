@@ -32,8 +32,8 @@ One row per sandbox execution. References are masked (e.g. `txn …a91f`). Scree
 
 | Milestone | Workflow | Date/time (IST) | Environment | Masked request/txn ref | Expected | Actual | Label | Evidence |
 |---|---|---|---|---|---|---|---|---|
-| M1 | ABHA creation (Aadhaar OTP) | | sandbox | | ABHA created, masked number shown | | | |
-| M1 | ABHA verification/login | | sandbox | | | | | |
+| M1 | ABHA creation (Aadhaar OTP) | 2026-11-25 | local/mock | n/a | ABHA created, masked number shown | Unit/integration tests with mocked Axios only. Live sandbox blocked by missing client ID/secret (known-issues B1) | IMPLEMENTED_NOT_SANDBOX_TESTED | Jest `abha.service.test.js`, `abha.routes.test.js`, `session.test.js`, `client.test.js`, `crypto.test.js` |
+| M1 | ABHA verification/login | | sandbox | | | | PENDING | Out of phase 1 |
 | M2 | FHIR validation | | local | | VALID | | | |
 | M2 | HIP-initiated link + callback | | sandbox | | LINKED after callback | | | |
 | M2 | HI request handled with consent check | | sandbox | | | | | |

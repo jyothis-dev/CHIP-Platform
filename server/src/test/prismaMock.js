@@ -26,6 +26,7 @@ export const prismaMock = {
   consentRequest: model(),
   aBDMTransaction: model(),
   callbackEvent: model(),
+  idempotencyKey: model(),
   auditLog: model(),
   $transaction: jest.fn(async (arg) => (typeof arg === 'function' ? arg(prismaMock) : Promise.all(arg))),
   $queryRaw: jest.fn(),

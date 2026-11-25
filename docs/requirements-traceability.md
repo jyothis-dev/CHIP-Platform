@@ -6,11 +6,11 @@ Every requirement from the assignment brief, mapped to where it is implemented a
 
 | ID | Requirement | Module / file | Tier | Status | Evidence / reason |
 |---|---|---|---|---|---|
-| M1.1 | ABHA creation workflows | `modules/abha` | C | PENDING | |
-| M1.2 | OTP-based verification | `modules/abha` | C | PENDING | |
-| M1.3 | ABHA number and ABHA address handling | `modules/abha`, `ABHAIdentity` | C/E | PENDING | |
-| M1.4 | Authentication and validation | `integrations/abdm/auth.js` | C | PENDING | |
-| M1.5 | Error handling and transaction status tracking | `ABDMTransaction`, error map | C | PENDING | |
+| M1.1 | ABHA creation workflows | `modules/abha` | C | IMPLEMENTED_NOT_SANDBOX_TESTED | Aadhaar OTP enrolment path implemented; sandbox credentials missing (see `known-issues.md` B1) |
+| M1.2 | OTP-based verification | `modules/abha` | C | PENDING | Phase 1 covers OTPs inside creation only. Login by ABHA number/address is phase 2 |
+| M1.3 | ABHA number and ABHA address handling | `modules/abha`, `ABHAIdentity` | C/E | IMPLEMENTED_NOT_SANDBOX_TESTED | Masked number, ciphertext, hash, and one address stored from enrolment |
+| M1.4 | Authentication and validation | `integrations/abdm/session.js`, Zod schemas | C | IMPLEMENTED_NOT_SANDBOX_TESTED | Gateway session + staff JWT + consent/Zod validation; not sandbox-proven |
+| M1.5 | Error handling and transaction status tracking | `ABDMTransaction`, error map | C | IMPLEMENTED_NOT_SANDBOX_TESTED | INITIATED→ACCEPTED→FAILED/ACCEPTED; Jest coverage with mocked Axios |
 | M2.1 | Patient and health record management | `modules/patients`, `health-records` | C | PENDING | |
 | M2.2 | HIP-related integration | `modules/hip` | C | PENDING | |
 | M2.3 | Health record linking | `modules/care-contexts` | C | PENDING | |
@@ -41,7 +41,7 @@ Every requirement from the assignment brief, mapped to where it is implemented a
 | Transaction and correlation ID tracking | `ABDMTransaction` | PENDING |
 | Error handling and retry mechanisms | `retry.js`, sweeper | PENDING |
 | Database persistence | Shell migration `20261124000000_wombto18_mvp` only. Target tables in `database-schema.md` are not migrated | IMPLEMENTED_NOT_SANDBOX_TESTED |
-| Audit logging | Login and logout via `server/src/shared/audit.js`. No ABDM rows yet | IMPLEMENTED_NOT_SANDBOX_TESTED |
+| Audit logging | `logAudit` writes actor, action, resource, outcome, correlationId, and human-readable `message` for login/logout, denials, patient create, and ABHA enrolment steps. Facility `GET /audit` + Activity Log UI | IMPLEMENTED_NOT_SANDBOX_TESTED |
 | FHIR validation | validator wrapper | PENDING |
 | Basic automated tests | Shell Jest passed (health, login, errors, rate limit). T1–T22 not written | IMPLEMENTED_NOT_SANDBOX_TESTED |
 | Accepted ≠ completed | state machine, T1/T2 | PENDING |

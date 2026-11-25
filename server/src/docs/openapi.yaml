@@ -6,7 +6,7 @@ info:
     Routes that exist on this server. Planned mother, child, and ABDM routes are not listed until they are implemented.
     Express paths do not include an /api prefix. The Vite dev server strips /api before proxying.
 servers:
-  - url: http://localhost:8000
+  - url: http://localhost:8080
 components:
   securitySchemes:
     bearerAuth:
@@ -89,6 +89,163 @@ components:
         accessTtl:
           type: string
           example: 15m
+    EnrolmentOtpRequest:
+      type: object
+      required: [patientId, aadhaar]
+      properties:
+        patientId:
+          type: string
+          format: uuid
+        aadhaar:
+          type: string
+          description: 12-digit Aadhaar. Never logged or stored.
+          example: "000000000000"
+    EnrolmentVerifyRequest:
+      type: object
+      required: [transactionId, otp, consentAccepted]
+      properties:
+        transactionId:
+          type: string
+          format: uuid
+        otp:
+          type: string
+          description: OTP value. Never logged or stored.
+        mobile:
+          type: string
+          description: Optional 10-digit communication mobile.
+        consentAccepted:
+          type: boolean
+          enum: [true]
+    MobileVerifyRequest:
+      type: object
+      required: [transactionId, otp]
+      properties:
+        transactionId:
+          type: string
+          format: uuid
+        otp:
+          type: string
+    CreateAddressRequest:
+      type: object
+      required: [transactionId, abhaAddress]
+      properties:
+        transactionId:
+          type: string
+          format: uuid
+        abhaAddress:
+          type: string
+          example: demo.mother@sbx
+    AbhaIdentityView:
+      type: object
+      properties:
+        verificationStatus:
+          type: string
+        abhaNumberMasked:
+          type: string
+          nullable: true
+          example: "**-****-****-1234"
+        abhaAddress:
+          type: string
+          nullable: true
+        verifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+    ManagedByStaff:
+      type: object
+      nullable: true
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        role:
+          type: string
+    CreatePatientRequest:
+      type: object
+      required: [patientType, name, gender]
+      properties:
+        patientType:
+          type: string
+          enum: [MOTHER, CHILD]
+        name:
+          type: string
+          example: Asha Devi
+        gender:
+          type: string
+          enum: [M, F, O]
+        dateOfBirth:
+          type: string
+          format: date
+          nullable: true
+        mobile:
+          type: string
+          description: Optional 10-digit mobile. Only last 4 digits are stored.
+          example: "9876543210"
+    PatientView:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        patientType:
+          type: string
+          enum: [MOTHER, CHILD]
+        name:
+          type: string
+        gender:
+          type: string
+        dateOfBirth:
+          type: string
+          format: date
+          nullable: true
+        mobileLast4:
+          type: string
+          nullable: true
+        facilityId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        managedBy:
+          $ref: "#/components/schemas/ManagedByStaff"
+        abha:
+          $ref: "#/components/schemas/AbhaIdentityView"
+    AuditLogEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        action:
+          type: string
+          example: patient.create
+        resourceType:
+          type: string
+          nullable: true
+        resourceId:
+          type: string
+          nullable: true
+        facilityId:
+          type: string
+          format: uuid
+          nullable: true
+        outcome:
+          type: string
+          enum: [success, denied, failure]
+        message:
+          type: string
+          example: Registered CHILD patient Ravi Kumar (managed by Demo Staff).
+        correlationId:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        actor:
+          $ref: "#/components/schemas/ManagedByStaff"
 paths:
   /health:
     get:
@@ -226,6 +383,525 @@ paths:
                     enum: [true]
                   data:
                     $ref: "#/components/schemas/SessionData"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: UNAUTHENTICATED
+                message: Authentication required
+  /abha/enrolment/otp:
+    post:
+      summary: Start ABHA enrolment by Aadhaar OTP
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrolmentOtpRequest"
+      responses:
+        "201":
+          description: OTP requested; transaction accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      transactionId:
+                        type: string
+                        format: uuid
+                      status:
+                        type: string
+                        example: ACCEPTED
+        "400":
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: UNAUTHENTICATED
+                message: Authentication required
+        "403":
+          description: Patient outside facility
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: FORBIDDEN
+                message: Patient is outside your facility
+        "404":
+          description: Patient not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: PATIENT_NOT_FOUND
+                message: Patient not found
+  /abha/enrolment/verify:
+    post:
+      summary: Verify Aadhaar OTP and enrol ABHA
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrolmentVerifyRequest"
+      responses:
+        "200":
+          description: Enrolment verified
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                      abhaNumberMasked:
+                        type: string
+                      isNew:
+                        type: boolean
+                      needsMobileVerify:
+                        type: boolean
+        "400":
+          description: Invalid OTP or missing consent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: ABHA_OTP_INVALID
+                message: The OTP could not be verified
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /abha/enrolment/mobile/verify:
+    post:
+      summary: Verify communication mobile OTP after enrolment
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MobileVerifyRequest"
+      responses:
+        "200":
+          description: Mobile verified
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        example: ACCEPTED
+        "400":
+          description: Invalid mobile OTP
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /abha/enrolment/{transactionId}/address-suggestions:
+    get:
+      summary: Suggested ABHA addresses for the enrolment transaction
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: transactionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Address suggestions
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      suggestions:
+                        type: array
+                        items:
+                          type: string
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /abha/enrolment/address:
+    post:
+      summary: Create an ABHA address for the enrolment
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAddressRequest"
+      responses:
+        "200":
+          description: Address created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                      abhaNumberMasked:
+                        type: string
+                      abhaAddress:
+                        type: string
+        "400":
+          description: Address create failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /abha/enrolment/{transactionId}/card:
+    get:
+      summary: Fetch ABHA card image for display only
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: transactionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Card image as base64
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      contentType:
+                        type: string
+                      imageBase64:
+                        type: string
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /patients:
+    get:
+      summary: List patients for the staff facility
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Optional name search
+      responses:
+        "200":
+          description: Facility-scoped patient list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PatientView"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      summary: Register a mother or child patient
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePatientRequest"
+      responses:
+        "201":
+          description: Patient registered
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    $ref: "#/components/schemas/PatientView"
+        "400":
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /patients/{id}:
+    get:
+      summary: Patient profile summary
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Patient profile with managing staff and ABHA status
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    $ref: "#/components/schemas/PatientView"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Patient outside facility
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: FORBIDDEN
+                message: Patient is outside your facility
+        "404":
+          description: Patient not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: PATIENT_NOT_FOUND
+                message: Patient not found
+  /patients/{id}/abha:
+    get:
+      summary: Masked ABHA identity for a patient
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Masked ABHA view
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    $ref: "#/components/schemas/AbhaIdentityView"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Patient outside facility
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Patient not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: PATIENT_NOT_FOUND
+                message: Patient not found
+  /audit:
+    get:
+      summary: Facility activity log
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: action
+          in: query
+          schema:
+            type: string
+        - name: resourceType
+          in: query
+          schema:
+            type: string
+        - name: resourceId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: actorId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: outcome
+          in: query
+          schema:
+            type: string
+            enum: [success, denied, failure]
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        "200":
+          description: Facility-scoped audit entries with human-readable messages
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AuditLogEntry"
         "401":
           description: Authentication required
           content:

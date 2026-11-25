@@ -1,6 +1,6 @@
 # API Inventory — WombTo18 ABDM Prototype
 
-All internal routes that are implemented are in `server/src/docs/openapi.yaml`, served at `http://localhost:8000/api-docs`. The spec lists only live Express routes (`/health`, `/auth/login`, `/auth/logout`, `/auth/me`). The table below includes routes that are not built yet. Those stay out of the spec until the handlers exist. State-changing routes accept `Idempotency-Key` once they exist. Asynchronous internal operations may return `202` with `{ transactionId, status, evidenceLabel }`, and the client may poll `GET /api/transactions/:id`. This is an internal API convention only; do not apply it to synchronous M1 actions or assume it matches ABDM callback acknowledgements.
+All internal routes that are implemented are in `server/src/docs/openapi.yaml`, served at `http://localhost:8000/api-docs`. The table below includes routes that are not built yet. Those stay out of the spec until the handlers exist. State-changing routes accept `Idempotency-Key` once they exist. Asynchronous internal operations may return `202` with `{ transactionId, status, evidenceLabel }`, and the client may poll `GET /api/transactions/:id`. This is an internal API convention only; do not apply it to synchronous M1 actions or assume it matches ABDM callback acknowledgements.
 
 ## Internal routes
 
@@ -8,8 +8,8 @@ All internal routes that are implemented are in `server/src/docs/openapi.yaml`, 
 |---|---|---|---|
 | POST | `/api/auth/login` | Staff login | — |
 | GET | `/api/dashboard` | Counts, pending transactions, recent callbacks | — |
-| GET/POST | `/api/patients` | Search/register mother or child | — |
-| GET | `/api/patients/:id` | Profile with ABHA, records, consents | — |
+| GET/POST | `/api/patients` | Search/register mother or child (IMPLEMENTED_NOT_SANDBOX_TESTED). Returns `managedBy` staff | — |
+| GET | `/api/patients/:id` | Profile with managing staff and masked ABHA status (IMPLEMENTED_NOT_SANDBOX_TESTED) | — |
 | POST | `/api/patients/:motherId/children` | Register newborn, link to mother | — |
 | POST | `/api/patients/:id/encounters` | Child follow-up / immunization | — |
 | POST | `/api/abha/enrolment/otp` | Start ABHA creation (request OTP) | M1 |
@@ -31,7 +31,7 @@ All internal routes that are implemented are in `server/src/docs/openapi.yaml`, 
 | POST | `/api/facilities/:id/hfr-link` | Attach verified HFR ID | M4 |
 | POST | `/api/practitioners/:id/hpr-link` | Attach verified HPR ID | M4 |
 | GET | `/api/transactions` / `/api/transactions/:id` | Transaction monitor and timeline | All |
-| GET | `/api/audit?resourceType=&resourceId=` | Audit trail (admin) | All |
+| GET | `/api/audit?action=&resourceType=&resourceId=&outcome=&from=&to=&limit=` | Facility activity log with human-readable `message` (IMPLEMENTED_NOT_SANDBOX_TESTED) | All |
 | GET | `/health` | Liveness and DB check | — |
 
 ## Deferred routes
@@ -67,7 +67,23 @@ The data-push receiver is the same tier as workflow 3.6. The route is Core. Decr
 Each callback route is listed in Swagger under the tag `ABDM Callbacks`, with its schema and documented acknowledgement.
 
 ## ABDM outbound calls
-Keep the outbound contract map in `integrations/abdm/contracts.js`: name, method, path, required headers, doc URL and verified date. This file is the single place to update when the v3 specification changes.
+Keep the outbound contract map in `server/src/integrations/abdm/contracts.js`: name, method, path, required headers, doc URL and verified date. This file is the single place to update when the v3 specification changes.
+
+Phase 1 M1 contracts verified against the ABDM M1 catalogue snapshot 2026.09.16 (`verifiedOn: 2026-09-16`):
+
+| Contract | Method | Path | Base |
+|---|---|---|---|
+| session | POST | `/api/hiecm/gateway/v3/sessions` | gateway `https://dev.abdm.gov.in` |
+| certificate | GET | `/abha/api/v3/profile/public/certificate` | ABHA |
+| requestAadhaarOtp | POST | `/abha/api/v3/enrollment/request/otp` | ABHA |
+| enrolByAadhaar | POST | `/abha/api/v3/enrollment/enrol/byAadhaar` | ABHA |
+| requestMobileOtp | POST | `/abha/api/v3/enrollment/request/otp` | ABHA |
+| verifyMobileOtp | POST | `/abha/api/v3/enrollment/auth/byAbdm` | ABHA |
+| addressSuggestion | GET | `/abha/api/v3/enrollment/enrol/suggestion` | ABHA |
+| createAbhaAddress | POST | `/abha/api/v3/enrollment/enrol/abha-address` | ABHA |
+| abhaCard | GET | `/abha/api/v3/profile/account/abha-card` | ABHA |
+
+Internal Express routes (Vite strips `/api` before proxying): `POST /abha/enrolment/otp`, `POST /abha/enrolment/verify`, `POST /abha/enrolment/mobile/verify`, `GET /abha/enrolment/:transactionId/address-suggestions`, `POST /abha/enrolment/address`, `GET /abha/enrolment/:transactionId/card`, `GET /patients`, `POST /patients`, `GET /patients/:id`, `GET /patients/:id/abha`, `GET /audit`.
 
 
 ## ABDM contract completion gate

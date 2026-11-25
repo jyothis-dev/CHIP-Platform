@@ -1,0 +1,59 @@
+.abha h1 {
+  margin-bottom: 4px;
+}
+
+.abha-selected {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.abha-selected p {
+  margin: 0;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.abha-error {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  margin: 0;
+}
+
+.checkbox {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.checkbox input {
+  margin-top: 4px;
+}
+
+.abha-result p {
+  margin: 0;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.abha-card {
+  max-width: 360px;
+  width: 100%;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+@media (max-width: 1024px) {
+  .abha-card {
+    max-width: 100%;
+  }
+}

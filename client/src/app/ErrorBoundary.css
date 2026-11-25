@@ -1,0 +1,6 @@
+.error-boundary {
+  padding: 24px;
+  display: grid;
+  gap: var(--space);
+  max-width: 480px;
+}

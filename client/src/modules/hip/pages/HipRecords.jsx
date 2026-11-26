@@ -41,6 +41,8 @@ export default function HipRecordsPage() {
   const [preview, setPreview] = useState(null);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(null);
+  const [bridgeMessage, setBridgeMessage] = useState('');
+  const [registering, setRegistering] = useState(false);
 
   const records = useQuery({
     queryKey: ['hip-records', patientId, contextPage],
@@ -88,11 +90,33 @@ export default function HipRecordsPage() {
     }
   }
 
+  async function registerCallback() {
+    setError('');
+    setBridgeMessage('');
+    setRegistering(true);
+    try {
+      const data = await http.post('/hip/bridge/url', { confirm: true });
+      setBridgeMessage(`Callback URL registered. Request ${data.requestId}.`);
+      queryClient.invalidateQueries({ queryKey: ['hip-readiness'] });
+    } catch (err) {
+      setError(err.message || 'ABDM did not accept the callback URL');
+    } finally {
+      setRegistering(false);
+    }
+  }
+
   return (
     <section className="stack hip-page">
       <PageHeader title="Health records" description="Visits, linking, and what ABDM can already see." />
       {readiness.isLoading ? <Spinner label="Checking HIP readiness…" /> : null}
-      {readiness.data ? <Readiness data={readiness.data} /> : null}
+      {readiness.data ? (
+        <Readiness
+          data={readiness.data}
+          registering={registering}
+          onRegister={registerCallback}
+        />
+      ) : null}
+      {bridgeMessage ? <Alert tone="ok">{bridgeMessage}</Alert> : null}
       {error ? <Alert tone="danger">{error}</Alert> : null}
 
       <label className="hip-field">
@@ -218,12 +242,26 @@ export default function HipRecordsPage() {
   );
 }
 
-function Readiness({ data }) {
+function Readiness({ data, registering, onRegister }) {
+  const registeredUrl = data.bridge?.url || '';
+  const callbackBase = data.callbackBase || '';
+  const matches = Boolean(
+    callbackBase
+    && registeredUrl
+    && registeredUrl.replace(/\/$/, '') === callbackBase.replace(/\/$/, ''),
+  );
   return (
     <div className="hip-readiness">
       {data.blockers.map((item) => <Alert key={item} tone="danger">{item}</Alert>)}
       {data.warnings.map((item) => <Alert key={item} tone="warning">{item}</Alert>)}
+      {callbackBase ? <p className="muted">Callback URL {callbackBase}</p> : null}
+      {matches ? <p className="muted">This callback URL is registered on the bridge.</p> : null}
       {data.bridge?.hipServiceId ? <p className="muted">Bridge HIP service is present.</p> : null}
+      {callbackBase ? (
+        <Button type="button" onClick={onRegister} disabled={registering}>
+          {registering ? 'Registering callback URL…' : 'Register callback URL'}
+        </Button>
+      ) : null}
     </div>
   );
 }

@@ -68,7 +68,7 @@ Updated: 2026-11-25. Steps done: 10 of 10 (100%). Sandbox linking is still block
 
 ### Configuration
 
-- Callback base is `ABDM_CALLBACK_BASE_URL`. The current tunnel is not written here. Register it with `PATCH /api/hiecm/gateway/v3/bridge/url` only after a person confirms it.
+- Callback base is `ABDM_CALLBACK_BASE_URL`. The current tunnel is not written here. It was registered on 2026-11-26 with `PATCH /api/hiecm/gateway/v3/bridge/url` (request `ee42b4a5-4eb2-4fc0-9209-57a292bd121c`, HTTP 202). Health records has a Register callback URL button for the next tunnel address.
 - `ABDM_HIP_ID` is the `services` entry from `GET /api/hiecm/gateway/v3/bridge-services` whose types include `HIP`. It is not on the client-credentials screen. Empty means linking calls are refused locally.
 
 ### Steps

@@ -66,7 +66,7 @@ cd ../client && npm ci && npm run dev
 Swagger UI for implemented routes: `http://localhost:8000/api-docs`.
 
 ## Callbacks
-1. Start the tunnel against the Express port (`8080` unless `PORT` says otherwise): `ngrok http 8080` → set `ABDM_CALLBACK_BASE_URL`. Register it from Health records only after the callback routes exist. `ABDM_HIP_ID` comes from `GET /api/hiecm/gateway/v3/bridge-services`, not from the client-credentials screen and not from gateway v1.
+1. Start the tunnel against the Express port (`8080` unless `PORT` says otherwise): `ngrok http 8080` → set `ABDM_CALLBACK_BASE_URL`. On Health records, use **Register callback URL** only after the callback routes exist. That button sends the configured base to `PATCH /api/hiecm/gateway/v3/bridge/url`. `ABDM_HIP_ID` comes from `GET /api/hiecm/gateway/v3/bridge-services`, not from the client-credentials screen and not from gateway v1.
 2. Register or update the callback URL with the sandbox as documented.
 3. Verify with a doc-example fixture: `npm run callback:fixture -- <name>`.
 

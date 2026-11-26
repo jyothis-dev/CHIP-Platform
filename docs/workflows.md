@@ -52,7 +52,7 @@ Status: `IMPLEMENTED_NOT_SANDBOX_TESTED`. Skill catalogue 2026.09.16. CHIP acts 
 11. Security. Consent must be `GRANTED`, unexpired, for this HIP id, and must cover the care context, date range, and HI type. Curve25519 material stays in memory.
 12. Errors. Missing `ABDM_HIP_ID` refuses the outbound call locally (`HIP_ID_MISSING`). An ABDM refusal is `ABDM_UPSTREAM` or the upstream code.
 13. Tests. Jest with mocked Axios and Prisma: `fidelius.test.js`, `fhir/bundle.test.js`, `hip.routes.test.js`. 21 tests passed on 2026-11-25 in those files together with `patients.routes.test.js`. No sandbox request id.
-14. Limitations. `ABDM_HIP_ID` is still empty until bridge-services returns a HIP service. The callback URL is not registered until staff confirm it. Only `ImmunizationRecord` is claimed. A PHR app pull has not been run.
+14. Limitations. `ABDM_HIP_ID` is set locally. `GET /api/hiecm/gateway/v3/bridge-services` on 2026-11-26 returned no service whose types include HIP, so the facility is not linked to this bridge yet. The callback URL was registered the same day (`PATCH /api/hiecm/gateway/v3/bridge/url`, request `ee42b4a5-4eb2-4fc0-9209-57a292bd121c`, HTTP 202) and the following bridge-services call showed that URL. Only `ImmunizationRecord` is claimed. A PHR app pull has not been run.
 
 ## M3 — HIU: consent and health information exchange
 

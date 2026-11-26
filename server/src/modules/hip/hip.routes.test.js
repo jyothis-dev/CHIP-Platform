@@ -19,6 +19,7 @@ process.env.ABDM_GATEWAY_BASE_URL = '';
 process.env.ABDM_ABHA_BASE_URL = '';
 process.env.ABDM_SANDBOX_HOST_ALLOWLIST = '';
 process.env.ABDM_HIP_ID = 'HIP-TEST';
+process.env.ABDM_CALLBACK_BASE_URL = '';
 process.env.ABHA_ENC_KEY = Buffer.alloc(32, 7).toString('base64');
 process.env.ABHA_HASH_KEY = Buffer.alloc(32, 9).toString('base64');
 
@@ -50,6 +51,30 @@ describe('HIP routes', () => {
     const res = await request(app).get('/hip/readiness');
     expect(res.status).toBe(401);
     expect(res.body.code).toBe('UNAUTHENTICATED');
+  });
+
+  it('returns 401 when callback registration has no staff session', async () => {
+    const res = await request(app).post('/hip/bridge/url').send({ confirm: true });
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe('UNAUTHENTICATED');
+  });
+
+  it('returns 400 when callback registration is not confirmed', async () => {
+    const res = await request(app)
+      .post('/hip/bridge/url')
+      .set('Authorization', `Bearer ${token}`)
+      .send({});
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('returns 409 when the callback base is not configured', async () => {
+    const res = await request(app)
+      .post('/hip/bridge/url')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ confirm: true });
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('CALLBACK_URL_MISSING');
   });
 
   it('returns 400 when the bundle code is missing', async () => {

@@ -1,5 +1,6 @@
 import { env } from '../../config/env.js';
 import { AppError } from '../../shared/errors.js';
+import { logAudit } from '../../shared/audit.js';
 import { getContract } from '../../integrations/abdm/contracts.js';
 import { abdmRequest } from '../../integrations/abdm/client.js';
 import { CLAIMED_HI_TYPES } from '../../integrations/abdm/fhir/profiles.js';
@@ -19,6 +20,7 @@ export async function readiness({ http } = {}) {
   const report = {
     hipIdConfigured: Boolean(env.abdmHipId),
     callbackBaseConfigured: Boolean(callbackBase),
+    callbackBase: callbackBase || null,
     claimedHiTypes: CLAIMED_HI_TYPES,
     bridge: null,
     blockers: [],
@@ -62,7 +64,13 @@ export async function readiness({ http } = {}) {
   return report;
 }
 
-export async function registerCallback({ confirm, http } = {}) {
+export async function registerCallback({
+  confirm,
+  http,
+  actorId,
+  facilityId,
+  correlationId,
+} = {}) {
   if (!confirm) {
     throw new AppError(400, 'BRIDGE_URL_UNCONFIRMED', 'Confirm the current callback base before it is registered');
   }
@@ -77,5 +85,15 @@ export async function registerCallback({ confirm, http } = {}) {
   if (result.status < 200 || result.status >= 300) {
     throw new AppError(502, 'BRIDGE_URL_FAILED', 'ABDM did not accept the bridge URL');
   }
+  await logAudit({
+    actorId: actorId || null,
+    facilityId: facilityId || null,
+    action: 'hip.bridge_url',
+    resourceType: 'bridge',
+    resourceId: env.abdmHipId,
+    outcome: 'success',
+    correlationId: correlationId || result.requestId,
+    message: 'Registered the HIP callback URL on the ABDM bridge.',
+  });
   return { requestId: result.requestId, status: result.status };
 }

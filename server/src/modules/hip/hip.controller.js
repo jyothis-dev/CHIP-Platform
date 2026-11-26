@@ -36,7 +36,12 @@ export async function getReadiness(req, res) {
 }
 
 export async function registerBridge(req, res) {
-  const data = await readiness.registerCallback({ confirm: req.validated.body.confirm });
+  const data = await readiness.registerCallback({
+    confirm: req.validated.body.confirm,
+    actorId: req.auth.userId,
+    facilityId: req.auth.facilityId,
+    correlationId: req.id,
+  });
   res.status(200).json({ success: true, data });
 }
 

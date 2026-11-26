@@ -1207,7 +1207,7 @@ paths:
         - bearerAuth: []
       responses:
         "200":
-          description: HIP id, callback base, and bridge-services summary
+          description: HIP id, the configured callback base, and the bridge-services summary. callbackBase is the public URL the Register callback URL action will send.
         "401":
           description: Authentication required
           content:

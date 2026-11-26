@@ -1,14 +1,17 @@
-import { createContext, useContext, useEffect, useMemo } from 'react';
+import { createContext, useContext, useEffect, useMemo, useSyncExternalStore } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as authApi from '../api/authApi.js';
-import { clearToken, getToken, setToken } from '@/shared/api/token.js';
+import {
+  clearToken, getToken, setToken, subscribeToken,
+} from '@/shared/api/token.js';
 import { resetUnauthorizedFlag } from '@/shared/api/sessionEvents.js';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const queryClient = useQueryClient();
-  const hasToken = Boolean(getToken());
+  // Subscribe so clearing the token (logout, 401) re-renders and drops `user` at once.
+  const hasToken = Boolean(useSyncExternalStore(subscribeToken, getToken));
 
   const meQuery = useQuery({
     queryKey: ['auth', 'me'],

@@ -23,11 +23,11 @@ Every requirement from the assignment brief, mapped to where it is implemented a
 | M3.4 | HIU health-information request and receipt workflow (paired with HIP response in M2) | `modules/hiu`, `modules/hip` | C/E by stage | PENDING | |
 | M3.5 | Expiry, rejection, revocation handling | `consentGuard`, sweeper | C | PENDING | |
 | M3.6 | Secure data transfer and transaction tracking | `crypto/`, `DataTransfer` | C/E by stage | PENDING | |
-| M4.1 | HPR lookup | `modules/registries` | C | PENDING | |
-| M4.2 | HFR lookup | `modules/registries` | C | PENDING | |
-| M4.3 | Registration and verification workflows | `modules/registries` | E | PENDING | |
-| M4.4 | Facility and professional information management | `Facility`, `Practitioner` | C | PENDING | |
-| M4.5 | API response and error handling | registry error map | C | PENDING | |
+| M4.1 | HPR lookup | `modules/registries` | C | IMPLEMENTED_NOT_SANDBOX_TESTED | `registries.routes.test.js` (mocked ABDM). Not a sandbox request id |
+| M4.2 | HFR lookup | `modules/registries` | C | IMPLEMENTED_NOT_SANDBOX_TESTED | `registries.routes.test.js` (mocked ABDM). Not a sandbox request id |
+| M4.3 | Registration and verification workflows | `modules/registries` | E | PENDING | Phase 1 covers the facility bridge link only. HFR onboarding, HPR login, HPID and professional registration are later phases |
+| M4.4 | Facility and professional information management | `Facility`, `Practitioner` | C | IMPLEMENTED_NOT_SANDBOX_TESTED | HFR/HPR id attach and bridge link, tested with mocked ABDM. Registry profile data is not stored |
+| M4.5 | API response and error handling | registry error map | C | IMPLEMENTED_NOT_SANDBOX_TESTED | `modules/registries/errors.js`. The M4 specifications carry no error codes, so failures map by HTTP status |
 
 ## §4 Technical expectations
 

@@ -16,7 +16,7 @@ No `ABDMBridge`, `FacilityBridge`, or `FacilityBridgeRole` table. The current AB
 |---|---|---|
 | `User` | id, name, email, passwordHash, role (`ADMIN` / `CLINICIAN` / `STAFF`), facilityId | email unique. facilityId required. Password hashes stay bcrypt (cost 12). |
 | `RefreshToken` | userId, tokenHash, expiresAt, revokedAt? | unique tokenHash. SHA-256 of the staff refresh cookie. The raw token is not stored. |
-| `Facility` | id, name, hfrId?, hfrVerifiedAt?, hfrStatus | hfrId unique when present. No callback URL and no client secret. |
+| `Facility` | id, name, hfrId?, hfrVerifiedAt?, hfrStatus, hfrRoles[], hipName?, hfrLinkCheckedAt? | hfrId unique when present. `hfrRoles` is the HIP/HIU roles last seen on bridge-services (migration `20261127000035_m4_registry_link`). No callback URL and no client secret. |
 | `Practitioner` | id, userId?, name, hprId?, hprVerifiedAt?, facilityId | hprId unique when present. One facility is enough for this demo. No join table. |
 | `Patient` | id, facilityId, patientType (`MOTHER` / `CHILD` / `GENERAL`), name, gender, dateOfBirth, mobileLast4?, registeredByUserId? | index (facilityId, name), index registeredByUserId. Managing staff is the registering user. `GENERAL` is any patient who is not registered as a mother or child. |
 | `MotherChildRelationship` | motherPatientId, childPatientId, relationshipType | unique (mother, child) |

@@ -1564,6 +1564,217 @@ paths:
       responses:
         "200":
           description: The ABDM body, verbatim
+  /registries/options:
+    get:
+      summary: M4 registry options (ownership codes, fixed facility page size)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: ownershipCodes and facilityPageSize.
+  /registries/readiness:
+    get:
+      summary: M4 readiness (registry bases, credentials, bridge id, facility roles on bridge-services)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: blockers and warnings. Calls bridge-services when credentials are configured.
+  /registries/facility:
+    get:
+      summary: The signed-in user's own facility, with HFR id, status and observed bridge roles
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: id, name, hfrId, hfrStatus, hipName, roles.
+  /registries/hfr/masters/{kind}:
+    get:
+      summary: HFR LGD master data (GET /v1.5/facility/lgd/...). kind is states, districts or subdistricts
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: kind, in: path, required: true, schema: { type: string, enum: [states, districts, subdistricts] } }
+        - { name: parentCode, in: query, schema: { type: string }, description: State code for districts or district code for subdistricts }
+      responses:
+        "200":
+          description: items of code and name.
+        "400":
+          description: parentCode missing for districts or subdistricts.
+  /registries/hfr/search:
+    post:
+      summary: Search the facility registry (POST /FacilityManagement/v1.5/facility/search)
+      description: Give facilityId, or facilityName with ownershipCode and stateLGDCode. The page size is fixed at 10 by the server. A 404 or empty list from ABDM is returned as no match.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                facilityId: { type: string, description: 12 characters starting IN }
+                facilityName: { type: string }
+                ownershipCode: { type: string, enum: [G, P, PP] }
+                stateLGDCode: { type: string }
+                districtLGDCode: { type: string }
+                subDistrictLGDCode: { type: string }
+                pincode: { type: string }
+                page: { type: integer, minimum: 1, default: 1 }
+      responses:
+        "200":
+          description: facilities, page, pageSize, totalFacilities, numberOfPages.
+        "400":
+          description: VALIDATION_ERROR.
+        "502":
+          description: ABDM_UPSTREAM or REGISTRY_FORBIDDEN.
+  /registries/hpr/exists/{hprId}:
+    get:
+      summary: Does an HPR id exist (GET /v1/search/existsByHprId/{hprId})
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: hprId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: exists. A 404 from ABDM reads as exists false.
+  /registries/hpr/{hprId}:
+    get:
+      summary: Search a professional by HPR id (GET /v1/search/searchByHprId/{hprId})
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: hprId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: found and professional. Nothing is stored.
+  /registries/hpr/search-by-mobile:
+    post:
+      summary: Search professionals by mobile (GET /v1/search/searchByMobile/{mobile}). CLINICIAN or ADMIN
+      description: A POST so the number never appears in this server's URLs. It is not written to traces, audit or transactions.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mobile]
+              properties:
+                mobile: { type: string, pattern: "^[0-9]{10}$" }
+      responses:
+        "200":
+          description: professionals.
+        "403":
+          description: PERMISSION_DENIED for STAFF.
+  /registries/hpr/professional-info:
+    post:
+      summary: Professional information (POST /apis/v1/doctors/fetch-professional-info). CLINICIAN or ADMIN
+      description: The shape of practitioners is not documented by ABDM (UNVERIFIED), so it is returned as sent.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [practitioner]
+              properties:
+                practitioner:
+                  type: object
+                  properties:
+                    id: { type: string }
+                    name: { type: string }
+                    contactNumber: { type: string }
+                    state: { type: string }
+                    registrationNumber: { type: string }
+                    stateCouncilName: { type: string }
+      responses:
+        "200":
+          description: message and practitioners.
+  /registries/facilities/{id}/hfr-link:
+    post:
+      summary: Save the HFR id on the facility after the registry returns exactly that facility. ADMIN, own facility only
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [hfrId]
+              properties:
+                hfrId: { type: string }
+      responses:
+        "200":
+          description: id, name, hfrId, hfrStatus, hfrVerifiedAt.
+        "404":
+          description: REGISTRY_NOT_FOUND. A facility in Draft is not visible.
+  /registries/practitioners/{id}/hpr-link:
+    post:
+      summary: Save an HPR id on a practitioner of this facility after the registry confirms it. ADMIN
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [hprId]
+              properties:
+                hprId: { type: string }
+      responses:
+        "200":
+          description: id, name, hprId, hprVerifiedAt.
+        "404":
+          description: PRACTITIONER_NOT_FOUND or REGISTRY_NOT_FOUND.
+  /registries/facilities/{id}/bridge-status:
+    get:
+      summary: Live bridge-services narrowed to this facility, with the ids to copy into ABDM_HIP_ID and ABDM_HIU_ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: facility, bridge, services, roles, config, suggested, warnings.
+  /registries/facilities/{id}/bridge-link:
+    post:
+      summary: Link the facility to this bridge (POST /v1/bridges/MutipleHRPAddUpdateServices). ADMIN
+      description: One HRP entry per role, never one entry for both. Success is reported only when bridge-services lists every requested role afterwards. Needs ABDM_BRIDGE_ID and a saved HFR id.
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [roles, hipName, confirm]
+              properties:
+                roles: { type: array, items: { type: string, enum: [HIP, HIU] }, minItems: 1 }
+                hipName: { type: string, maxLength: 15, description: No special characters }
+                confirm: { type: boolean, enum: [true] }
+      responses:
+        "200":
+          description: requestedRoles, confirmedRoles, missingRoles, confirmed, warnings.
+        "400":
+          description: VALIDATION_ERROR, HIP_NAME_INVALID, HIP_NAME_REFUSED or REGISTRY_VALIDATION.
+        "409":
+          description: HFR_ID_MISSING.
+        "503":
+          description: BRIDGE_ID_MISSING.
   /api/v3/hip/token/on-generate-token:
     post:
       summary: ABDM link-token callback

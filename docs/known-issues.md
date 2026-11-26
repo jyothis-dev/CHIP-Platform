@@ -39,6 +39,11 @@ These are not sandbox errors. Do not close them by inventing an API.
 | D1 | Callback path, acknowledgement, and correlation columns in `api-inventory.md` are blank | `UNVERIFIED` until MCP returns each operation |
 | D2 | FHIR profile names and the NRCeS IG package id | ImmunizationRecord fetched 2026-11-25: `https://nrces.in/ndhm/fhir/r4/StructureDefinition/ImmunizationRecord` version 6.5.0. The other seven HI type profile URLs remain `UNVERIFIED` and those bundles are stored as `UNVERIFIED` and are not linked |
 | D3 | Which M4 registration calls are mandatory. The portal title is registration, not lookup | `UNVERIFIED` |
+| D6 | M4: two facility-search paths exist in the specification (`/FacilityManagement/v1.5/facility/search` and `/search/address/filter/deduplicate`). Phase 1 uses the first | `UNVERIFIED` |
+| D7 | M4: whether the bridge link also needs the facility manager's `x-hprid-auth`. The specification lists only `Authorization` | `UNVERIFIED` |
+| D8 | M4: the response body of the bridge link (`type: object`) and the shape of `practitioners` on professional-info are undocumented | `UNVERIFIED` |
+| D9 | M4: whether the registry host accepts the gateway session token. The HPID flow says it does | `UNVERIFIED` until a sandbox call |
+| D10 | M4: whether HIP and HIU entries for one facility may share a `hipName`. The rule says unique per bridge for a facility | `UNVERIFIED` |
 | D4 | Transit cipher, padding, and certificate URL for ABHA. Dashes must be kept. That part is from the Build with AI page | Catalogue names `RSA/ECB/OAEPWithSHA-1AndMGF1Padding` and `GET /v3/profile/public/certificate`; still re-verify on the live page before claiming `SANDBOX_TESTED` |
 | D5 | Whether a HIP id is per facility. Credentials and the callback URL are not | One bridge is from the portal. HIP id scope is `UNVERIFIED` |
 | D6 | Whether `enrol/abha-address` requires a callback before `COMPLETED` | Until the fetched page says otherwise, the transaction stays `ACCEPTED` after address create |

@@ -157,7 +157,7 @@ Updated: 2026-11-27. Steps done: 10 of 13 (77%). Sandbox status: `IMPLEMENTED_NO
 
 Phase 4. Skill: `.claude/skills/abdm-m4` (catalogue 2026.09.16). Entity type: **private** (chosen 2026-11-27). Role: facility staff and admin. Full design: the approved M4 plan (lookups, then facility bridge link, then registration phases).
 
-Updated: 2026-11-27. Steps done: 0 of 12 (0%). Sandbox status: `PENDING`.
+Updated: 2026-11-27. Steps done: 5 of 12 (42%). Sandbox status: `IMPLEMENTED_NOT_SANDBOX_TESTED`. Client tests could not run on Node 20.15 (known-issues B5).
 
 ### Scope
 
@@ -176,12 +176,12 @@ Updated: 2026-11-27. Steps done: 0 of 12 (0%). Sandbox status: `PENDING`.
 | # | Step | Status | Exit | Evidence |
 |---|---|---|---|---|
 | 1 | Prerequisites: sandbox session token, bridge id, facility manager | blocked | A gateway session returns a token and `bridge-services` is read | Waiting on the integrator (known-issues B1) |
-| 2 | Verify open contract questions with the abdm-docs server | pending | Each item in the plan's verify list is answered or recorded as UNVERIFIED | |
-| 3 | Plumbing: registry bases, query support, redaction keys, contracts | pending | Existing client and contract tests pass and new ones cover the registry base | |
-| 4 | Lookups: facility search, LGD masters, HPR exists/search/info | pending | Jest passes with mocked `abdmRequest`; RBAC and validation covered | |
-| 5 | Facility link: migration, bridge link, bridge status, readiness | pending | Jest covers one HIP and one HIU entry, never combined, and success only after `bridge-services` shows the role | |
-| 6 | Screens: lookup and facility link | pending | Pages render readiness, results and errors; client tests pass | |
-| 7 | OpenAPI, docs, traceability | pending | `docs/` updated in the same change | |
+| 2 | Verify open contract questions with the abdm-docs server | done | Each item in the plan's verify list is answered or recorded as UNVERIFIED | Paths, headers and bodies read through abdm-docs on 2026-11-27. Open items recorded as `docs/known-issues.md` D6 to D10 |
+| 3 | Plumbing: registry bases, query support, redaction keys, contracts | done | Existing client and contract tests pass and new ones cover the registry base | `client.test.js`, `contracts.test.js`. The trace stores the path template, not the resolved id or mobile |
+| 4 | Lookups: facility search, LGD masters, HPR exists/search/info | done | Jest passes with mocked `abdmRequest`; RBAC and validation covered | `server/src/modules/registries/registries.routes.test.js`. Mocked ABDM, not a sandbox request id |
+| 5 | Facility link: migration, bridge link, bridge status, readiness | done | Jest covers one HIP and one HIU entry, never combined, and success only after `bridge-services` shows the role | Same suite. Migration `20261127000035_m4_registry_link` written; not yet applied to the database |
+| 6 | Screens: lookup and facility link | in progress | Pages render readiness, results and errors; client tests pass | `/registry` and `/registry/facility` build with `vite build`. Client tests written but could not run (Node 20.15, B5). The validation rules were checked by a plain Node script. Not yet viewed in a browser |
+| 7 | OpenAPI, docs, traceability | done | `docs/` updated in the same change | `openapi.yaml` (13 paths, `api.test.js` updated), `docs/api-inventory.md`, `requirements-traceability.md`, `database-schema.md`, `setup-and-deployment.md`, `known-issues.md` |
 | 8 | Sandbox run: search, link as HIP, link as HIU, verify | blocked | Request ids logged; `bridge-services` lists both roles | Needs step 1 and the facility manager at the keyboard |
 | 9 | Retest M2 link token and M3 consent request | blocked | `ABDM-1035` and `ABDM-1040` are gone | Needs step 8 |
 | 10 | NHA workbooks (HFR and HPR), private entity | blocked | Results and report built by `abdm_report.py` | Needs steps 8 and 9 |

@@ -27,10 +27,19 @@ All internal routes that are implemented are in `server/src/docs/openapi.yaml`, 
 | POST | `/api/consents/:id/artefact` | Fetch the consent artefact. Not the health-information request | M3 |
 | POST | `/api/consents/:id/health-information` | Start the HIU health-information request. Requires `GRANTED` and a fresh consent check | M3 |
 | GET | `/api/consents/:id/records` | Received record metadata | M3 |
-| GET | `/api/registries/hfr?query=` | HFR lookup | M4 |
-| GET | `/api/registries/hpr?query=` | HPR lookup | M4 |
-| POST | `/api/facilities/:id/hfr-link` | Attach verified HFR ID | M4 |
-| POST | `/api/practitioners/:id/hpr-link` | Attach verified HPR ID | M4 |
+| GET | `/api/registries/options` | Ownership codes and the fixed facility page size | M4 |
+| GET | `/api/registries/readiness` | Registry bases, credentials, bridge id, facility roles | M4 |
+| GET | `/api/registries/facility` | The signed-in user's own facility | M4 |
+| GET | `/api/registries/hfr/masters/:kind` | LGD states, districts, sub-districts | M4 |
+| POST | `/api/registries/hfr/search` | HFR facility search. Page size fixed at 10 | M4 |
+| GET | `/api/registries/hpr/exists/:hprId` | HPR id exists | M4 |
+| GET | `/api/registries/hpr/:hprId` | HPR search by id | M4 |
+| POST | `/api/registries/hpr/search-by-mobile` | HPR search by mobile. CLINICIAN or ADMIN. POST so the number stays out of URLs | M4 |
+| POST | `/api/registries/hpr/professional-info` | Professional information. CLINICIAN or ADMIN | M4 |
+| POST | `/api/registries/facilities/:id/hfr-link` | Attach a verified HFR ID. ADMIN, own facility | M4 |
+| POST | `/api/registries/practitioners/:id/hpr-link` | Attach a verified HPR ID. ADMIN | M4 |
+| GET | `/api/registries/facilities/:id/bridge-status` | Live bridge-services for this facility | M4 |
+| POST | `/api/registries/facilities/:id/bridge-link` | Link the facility to the bridge as HIP and/or HIU. ADMIN | M4 |
 | GET | `/api/transactions` / `/api/transactions/:id` | Transaction monitor and timeline | All |
 | GET | `/api/audit?action=&resourceType=&resourceId=&outcome=&from=&to=&page=&pageSize=` | Paged facility activity log with human-readable `message` (IMPLEMENTED_NOT_SANDBOX_TESTED) | All |
 | GET | `/health` | Liveness and DB check | — |

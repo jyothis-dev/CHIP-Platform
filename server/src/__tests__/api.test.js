@@ -254,6 +254,19 @@ describe('API', () => {
       '/patients',
       '/patients/{id}',
       '/patients/{id}/abha',
+      '/registries/facilities/{id}/bridge-link',
+      '/registries/facilities/{id}/bridge-status',
+      '/registries/facilities/{id}/hfr-link',
+      '/registries/facility',
+      '/registries/hfr/masters/{kind}',
+      '/registries/hfr/search',
+      '/registries/hpr/exists/{hprId}',
+      '/registries/hpr/professional-info',
+      '/registries/hpr/search-by-mobile',
+      '/registries/hpr/{hprId}',
+      '/registries/options',
+      '/registries/practitioners/{id}/hpr-link',
+      '/registries/readiness',
     ]);
     expect(res.body.paths['/auth/me'].get.security).toEqual([{ bearerAuth: [] }]);
     expect(res.body.paths['/auth/login'].post.security).toBeUndefined();

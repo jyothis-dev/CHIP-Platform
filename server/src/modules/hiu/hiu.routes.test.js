@@ -263,6 +263,34 @@ describe('HIU callbacks', () => {
     expect(names).toEqual(['hiuConsentOnNotify']);
   });
 
+  it('keeps ABDM-1120 on the request and answers 202 when notify carries an error and no status', async () => {
+    prismaMock.consentRequest.findUnique.mockResolvedValue({ id: requestRowId, status: 'REQUESTED' });
+    prismaMock.consentRequest.update.mockResolvedValue({ id: requestRowId, status: 'REQUESTED' });
+    const res = await request(app).post('/api/v3/hiu/consent/request/notify')
+      .set('Authorization', 'Bearer gw').set('X-HIU-ID', 'HIU-TEST').set('REQUEST-ID', 'notify-err')
+      .send({
+        error: { code: 'ABDM-1120: ', message: 'No care context available' },
+        notification: { consentRequestId: 'cr-ext-1' },
+      });
+    expect(res.status).toBe(202);
+    const update = prismaMock.consentRequest.update.mock.calls[0][0];
+    expect(update.data).toEqual({ lastErrorCode: 'ABDM-1120', lastErrorMessage: 'No care context available' });
+    expect(mockAbdmRequest).not.toHaveBeenCalled();
+    expect(prismaMock.callbackEvent.update.mock.calls.at(-1)[0].data.processingStatus).toBe('PROCESSED');
+  });
+
+  it('answers 202 for an error notify that matches no request, instead of failing the callback', async () => {
+    prismaMock.consentRequest.findUnique.mockResolvedValue(null);
+    const res = await request(app).post('/api/v3/hiu/consent/request/notify')
+      .set('Authorization', 'Bearer gw').set('X-HIU-ID', 'HIU-TEST').set('REQUEST-ID', 'notify-err-2')
+      .send({
+        error: { code: 'ABDM-1120: ', message: 'No care context available' },
+        notification: { consentRequestId: 'cr-not-yet-known' },
+      });
+    expect(res.status).toBe(202);
+    expect(prismaMock.consentRequest.update).not.toHaveBeenCalled();
+  });
+
   it('revokes, purges records and ends the request', async () => {
     prismaMock.consentRequest.findUnique.mockResolvedValue({ id: requestRowId, status: 'GRANTED' });
     prismaMock.consentArtefact.findUnique.mockResolvedValue({ id: artefactRowId, status: 'GRANTED', consentRequestId: requestRowId });

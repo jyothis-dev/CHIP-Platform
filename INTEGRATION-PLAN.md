@@ -57,7 +57,7 @@ Tracker rows are written by `abdm_report.py tracker` after a sandbox run. No cas
 
 Phase 2. Skill: `.cursor/skills/abdm-m2` (catalogue 2026.09.16). Role: HIP. Entity type does not change the mandatory M2 cases. M1 steps above stay as they are.
 
-Updated: 2026-11-25. Steps done: 10 of 10 (100%). Sandbox linking is still blocked on `ABDM_HIP_ID`.
+Updated: 2026-11-27. Steps done: 10 of 10 (100%) for the code. Sandbox: the HIP is now linked and generate-token is accepted, but the link token is refused with `ABDM-1207` (see the preflight log).
 
 ### Scope
 
@@ -76,6 +76,9 @@ Updated: 2026-11-25. Steps done: 10 of 10 (100%). Sandbox linking is still block
 | Date | Step | Observed |
 |---|---|---|
 | 2026-11-26 | Preflight check (via `/hip/readiness`) | `bridge.url` matches callback base, `bridge.active` true, `ABDM_HIP_ID` configured in env, `services` empty — no HIP entry. Blocker: facility not yet linked to client ID via Software Linkage on HSPA sandbox portal. |
+| 2026-11-27 01:48 IST | bridge-services (`3da3d6ef`) | HTTP 200. The facility service lists types HIP and HIU. The blocker above is cleared. |
+| 2026-11-27 01:57 IST | generate-token (`12d1bf5f`) | HTTP 202, then a callback with `ABDM-1207`: the demographics sent do not match the ABHA record. Link token not issued. Next: align the patient's name, gender and year of birth with the PHR profile, then retry. |
+| 2026-11-27 02:05 to 02:07 IST | Patient-initiated linking | discover, init and confirm callbacks were PROCESSED and answered. No care context is LINKED yet. One discover callback is DEAD (cause unread). |
 
 ### Steps
 
@@ -96,7 +99,7 @@ Updated: 2026-11-25. Steps done: 10 of 10 (100%). Sandbox linking is still block
 
 Phase 3. Skill: `.claude/skills/abdm-m3` (catalogue 2026.09.16). Role: HIU. M1 and M2 steps above stay as they are.
 
-Updated: 2026-11-27. Steps done: 10 of 13 (77%). Sandbox status: `IMPLEMENTED_NOT_SANDBOX_TESTED`.
+Updated: 2026-11-27. Steps done: 11 of 13 (85%). Sandbox status: consent init and on-init observed (`8391e049`); the patient cannot grant until a care context is linked (M2 `ABDM-1207`).
 
 ### Scope
 
@@ -126,8 +129,8 @@ Updated: 2026-11-27. Steps done: 10 of 13 (77%). Sandbox status: `IMPLEMENTED_NO
 | 8 | HI request, data push receiver, decrypt, MD5 check, notify | done | A push decrypts and is stored re-encrypted. A checksum mismatch is `ERRORED` and notified as `FAILED` | `hiu.routes.test.js` data push cases |
 | 9 | Sweeper (status poll on expiry, `dataEraseAt` purge, key wipe) and screens | done | Revoked or expired returns 410 with the reason | `/consents`, `/consents/:id`; `npm test` in `server/`: 20 suites, 114 passed, 2026-11-27 |
 | 10 | OpenAPI and docs | done | `/api-docs` lists every HIU route | `api.test.js` path list |
-| 11 | Apply the migration and regenerate Prisma Client | blocked | `prisma migrate deploy` applies 0034 and `prisma generate` succeeds | Waiting on the integrator. The dev database is shared with another app's `public` tables, so the generated diff was not used |
-| 12 | Sandbox smoke | blocked | Session 200. bridge-services lists an HIU service. init, then on-init with the same `response.requestId` | Needs the HIU service id (Software Linkage on the HSPA sandbox portal) and a live tunnel |
+| 11 | Apply the migration and regenerate Prisma Client | done | `prisma migrate deploy` applies 0034 and `prisma generate` succeeds | Consent request and callback rows exist in the database, so the migration is applied (observed 2026-11-27) |
+| 12 | Sandbox smoke | in progress | Session 200. bridge-services lists an HIU service. init, then on-init with the same `response.requestId` | Done: session and bridge-services 200 with HIP and HIU listed; init `8391e049` 202, then on-init PROCESSED and the request is REQUESTED with an ABDM id. Not yet: status callback (`5f4a2436` returned 202, no callback seen); the 01:53 IST init `e1f643cd` has no on-init yet; one notify callback is DEAD |
 | 13 | Tester run and workbook | blocked | Each in-scope case ends with a request id or a screen attestation | Needs step 12, a tester with an `@sbx` ABHA address in the PHR app, and a HIP holding an ImmunizationRecord for that patient. Run log: `abdm-ft/m3-<timestamp>.md` |
 
 ### Screen map
@@ -146,8 +149,8 @@ Updated: 2026-11-27. Steps done: 10 of 13 (77%). Sandbox status: `IMPLEMENTED_NO
 
 ### Open questions for the first sandbox observation
 
-1. Do consent status and consent fetch answer with a 200 and a body, or with a 202 and then a callback? Both are handled.
-2. What should `requester.identifier` be? The code sends the facility HFR id, with type `HFR`.
+1. Do consent status and consent fetch answer with a 200 and a body, or with a 202 and then a callback? Both are handled. Observed so far: init and status both answered 202. Init was followed by an on-init callback; no status callback has been seen yet.
+2. What should `requester.identifier` be? The code sends the facility HFR id, with type `HFR`. Observed: with no HFR id saved the code sent the HIU id, ABDM accepted it, and the PHR app showed the request. Not yet seen with the saved HFR id.
 3. What is the acknowledgement on a DENIED or EXPIRED notify, which carries no artefacts? The code sends an empty array.
 4. Is the notify `sessionStatus` `TRANSFERRED` or something else? The code sends `TRANSFERRED` or `FAILED`.
 5. Does `nonce` belong inside `keyMaterial` only? The code sends it there, as the specification sample does.
@@ -157,7 +160,7 @@ Updated: 2026-11-27. Steps done: 10 of 13 (77%). Sandbox status: `IMPLEMENTED_NO
 
 Phase 4. Skill: `.claude/skills/abdm-m4` (catalogue 2026.09.16). Entity type: **private** (chosen 2026-11-27). Role: facility staff and admin. Full design: the approved M4 plan (lookups, then facility bridge link, then registration phases).
 
-Updated: 2026-11-27. Steps done: 5 of 12 (42%). Sandbox status: `IMPLEMENTED_NOT_SANDBOX_TESTED`. Client tests could not run on Node 20.15 (known-issues B5).
+Updated: 2026-11-27. Steps done: 6 of 12 (50%). Sandbox status: HFR lookup, LGD lists and bridge-services observed (HTTP 200). HPR lookup and the bridge link write are not yet run. Client tests could not run on Node 20.15 (known-issues B5).
 
 ### Scope
 
@@ -175,15 +178,15 @@ Updated: 2026-11-27. Steps done: 5 of 12 (42%). Sandbox status: `IMPLEMENTED_NOT
 
 | # | Step | Status | Exit | Evidence |
 |---|---|---|---|---|
-| 1 | Prerequisites: sandbox session token, bridge id, facility manager | blocked | A gateway session returns a token and `bridge-services` is read | Waiting on the integrator (known-issues B1) |
+| 1 | Prerequisites: sandbox session token, bridge id, facility manager | done | A gateway session returns a token and `bridge-services` is read | Session and bridge-services 200 (`3da3d6ef`, 2026-11-27). Bridge id `SBXID_098613` read from the HSPA portal and set in `.env`. The facility was linked on the portal |
 | 2 | Verify open contract questions with the abdm-docs server | done | Each item in the plan's verify list is answered or recorded as UNVERIFIED | Paths, headers and bodies read through abdm-docs on 2026-11-27. Open items recorded as `docs/known-issues.md` D6 to D10 |
 | 3 | Plumbing: registry bases, query support, redaction keys, contracts | done | Existing client and contract tests pass and new ones cover the registry base | `client.test.js`, `contracts.test.js`. The trace stores the path template, not the resolved id or mobile |
 | 4 | Lookups: facility search, LGD masters, HPR exists/search/info | done | Jest passes with mocked `abdmRequest`; RBAC and validation covered | `server/src/modules/registries/registries.routes.test.js`. Mocked ABDM, not a sandbox request id |
 | 5 | Facility link: migration, bridge link, bridge status, readiness | done | Jest covers one HIP and one HIU entry, never combined, and success only after `bridge-services` shows the role | Same suite. Migration `20261127000035_m4_registry_link` written; not yet applied to the database |
 | 6 | Screens: lookup and facility link | in progress | Pages render readiness, results and errors; client tests pass | `/registry` and `/registry/facility` build with `vite build`. Client tests written but could not run (Node 20.15, B5). The validation rules were checked by a plain Node script. Not yet viewed in a browser |
 | 7 | OpenAPI, docs, traceability | done | `docs/` updated in the same change | `openapi.yaml` (13 paths, `api.test.js` updated), `docs/api-inventory.md`, `requirements-traceability.md`, `database-schema.md`, `setup-and-deployment.md`, `known-issues.md` |
-| 8 | Sandbox run: search, link as HIP, link as HIU, verify | blocked | Request ids logged; `bridge-services` lists both roles | Needs step 1 and the facility manager at the keyboard |
-| 9 | Retest M2 link token and M3 consent request | blocked | `ABDM-1035` and `ABDM-1040` are gone | Needs step 8 |
+| 8 | Sandbox run: search, link as HIP, link as HIU, verify | in progress | Request ids logged; `bridge-services` lists both roles | Search `39c29b60`, `d9be32c8` and LGD lists 200; HFR id saved (status Submitted). The link was done on the portal, and `bridge-services` already lists HIP and HIU (`3da3d6ef`). Not yet run: the API bridge-link write and any HPR lookup |
+| 9 | Retest M2 link token and M3 consent request | in progress | `ABDM-1035` and `ABDM-1040` are gone | Done: neither code appeared. M3 init `8391e049` was accepted and shown in the PHR app. M2 generate-token `12d1bf5f` is accepted but fails with `ABDM-1207` (a different error) |
 | 10 | NHA workbooks (HFR and HPR), private entity | blocked | Results and report built by `abdm_report.py` | Needs steps 8 and 9 |
 | 11 | Phase 2: HFR onboarding | pending | Separate approval | |
 | 12 | Phases 3 and 4: HPR login, HPID, professional registration | pending | Separate approval | |

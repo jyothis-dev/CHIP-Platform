@@ -2,7 +2,8 @@ import dotenv from 'dotenv';
 import { z } from 'zod';
 import { abdmBaseUrlConfig, validateAbdmBaseUrls } from './abdmHosts.js';
 
-dotenv.config();
+// Tests set their own environment. Loading the developer's .env would make them depend on local settings.
+if (process.env.NODE_ENV !== 'test') dotenv.config();
 
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),

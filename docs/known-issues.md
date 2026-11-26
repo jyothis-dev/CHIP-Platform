@@ -39,10 +39,10 @@ These are not sandbox errors. Do not close them by inventing an API.
 | D1 | Callback path, acknowledgement, and correlation columns in `api-inventory.md` are blank | `UNVERIFIED` until MCP returns each operation |
 | D2 | FHIR profile names and the NRCeS IG package id | ImmunizationRecord fetched 2026-11-25: `https://nrces.in/ndhm/fhir/r4/StructureDefinition/ImmunizationRecord` version 6.5.0. The other seven HI type profile URLs remain `UNVERIFIED` and those bundles are stored as `UNVERIFIED` and are not linked |
 | D3 | Which M4 registration calls are mandatory. The portal title is registration, not lookup | `UNVERIFIED` |
-| D6 | M4: two facility-search paths exist in the specification (`/FacilityManagement/v1.5/facility/search` and `/search/address/filter/deduplicate`). Phase 1 uses the first | `UNVERIFIED` |
+| D6 | M4: two facility-search paths exist in the specification (`/FacilityManagement/v1.5/facility/search` and `/search/address/filter/deduplicate`). Phase 1 uses the first | Observed 2026-11-27: the first returned HTTP 200 in the sandbox (`39c29b60`). The second path is untested |
 | D7 | M4: whether the bridge link also needs the facility manager's `x-hprid-auth`. The specification lists only `Authorization` | `UNVERIFIED` |
 | D8 | M4: the response body of the bridge link (`type: object`) and the shape of `practitioners` on professional-info are undocumented | `UNVERIFIED` |
-| D9 | M4: whether the registry host accepts the gateway session token. The HPID flow says it does | `UNVERIFIED` until a sandbox call |
+| D9 | M4: whether the registry host accepts the gateway session token | Resolved 2026-11-27: HTTP 200 from `apihspsbx.abdm.gov.in/v4/int` with that token (`39c29b60`) |
 | D10 | M4: whether HIP and HIU entries for one facility may share a `hipName`. The rule says unique per bridge for a facility | `UNVERIFIED` |
 | D4 | Transit cipher, padding, and certificate URL for ABHA. Dashes must be kept. That part is from the Build with AI page | Catalogue names `RSA/ECB/OAEPWithSHA-1AndMGF1Padding` and `GET /v3/profile/public/certificate`; still re-verify on the live page before claiming `SANDBOX_TESTED` |
 | D5 | Whether a HIP id is per facility. Credentials and the callback URL are not | One bridge is from the portal. HIP id scope is `UNVERIFIED` |
@@ -52,7 +52,7 @@ These are not sandbox errors. Do not close them by inventing an API.
 - Single backend hosts both HIP and HIU roles. Production would separate them per tenant.
 - DB-polled retry sweeper instead of a durable queue. Fine for prototype load, not for scale.
 - Minimal maternal/child domain model. No clinical decision support, schedules or billing.
-- FHIR coverage is limited to the selected HI types: [list].
+- FHIR coverage: `ImmunizationRecord` is the only HI type claimed and validated against its NRCES profile (version 6.5.0). The other seven HI types share the same bundle factory, are stored as `UNVERIFIED` until each profile URL is fetched, and are not linked (see D2).
 - Demo login / simplified RBAC.
 - Single-instance deployment. The sweeper is not leader-elected.
 - Phase 1 M1 covers Aadhaar-OTP creation only. Login by ABHA number or address is not built.
@@ -76,3 +76,12 @@ The following are currently unconfirmed prerequisites, not observed sandbox erro
 - Official sandbox Postman collection or equivalent test instructions, if supplied.
 
 Until these are confirmed, do not claim a live workflow is blocked by a specific error; use `PENDING` with the missing prerequisite as the reason. Never use real Aadhaar or patient data as a substitute.
+
+## Open sandbox findings (2026-11-27)
+
+| # | Finding | Status |
+|---|---|---|
+| S1 | M2 `generate-token` is accepted (202) but the callback returns `ABDM-1207` (details do not match the ABHA record). Compare the patient name, gender and year of birth with the PHR profile | Open |
+| S2 | Two callbacks are recorded DEAD (the handler threw). (a) `/api/v3/hiu/consent/request/notify` at 00:59 IST carried `error: ABDM-1120 "No care context available"` and no `status`. `handleNotify` expects a status, so it threw. ABDM was saying the patient has no linked care context, the same cause as S4. The request stays REQUESTED and the error is never shown. (b) `/api/v3/hip/patient/care-context/discover` at 01:14 IST. It failed before CHIP wrote any `hip.discover` row, so it failed during patient lookup. The error text is only in the server log of that moment. Later discovers (01:27 and 02:05 IST) were PROCESSED | (a) Understood, fix not yet made. (b) Cause not recoverable from the database |
+| S3 | A consent request raised at 01:53 IST is INIT_SENT with no `on-init` callback yet, while the 00:59 IST request received one | Open |
+| S4 | The PHR app cannot grant a consent for this ABHA address until a care context is LINKED ("no facility available") | Open, depends on S1 |

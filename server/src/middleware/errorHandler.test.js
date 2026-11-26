@@ -1,3 +1,4 @@
+import '../test/env.js';
 import express from 'express';
 import request from 'supertest';
 import { AppError } from '../shared/errors.js';

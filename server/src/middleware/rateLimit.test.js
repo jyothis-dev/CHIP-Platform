@@ -1,3 +1,4 @@
+import '../test/env.js';
 import express from 'express';
 import request from 'supertest';
 import { buildLimiter } from './rateLimit.js';

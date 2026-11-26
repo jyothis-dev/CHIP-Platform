@@ -271,8 +271,46 @@ export function artefactIds(notification) {
     .filter(Boolean);
 }
 
+/**
+ * ABDM can answer a consent request with a notify that carries an error and no status
+ * (observed in the sandbox: ABDM-1120 "No care context available"). Nothing was granted,
+ * so there is no artefact to acknowledge. Keep ABDM's own code and message on the request,
+ * and answer 202 so the callback is PROCESSED rather than DEAD.
+ */
+async function handleNotifyError({ body, correlationId }) {
+  const notification = body?.notification || {};
+  const request = notification.consentRequestId
+    ? await repo.findConsentRequestByExternalId(notification.consentRequestId)
+    : null;
+  const lastErrorCode = upstreamCode(body) || null;
+  const lastErrorMessage = upstreamMessage(body) || 'ABDM reported an error for this consent request';
+
+  if (request && !TERMINAL_STATES.has(request.status)) {
+    if (request.status === 'INIT_SENT') {
+      await moveRequest(request, 'INIT_FAILED', { lastErrorCode, lastErrorMessage });
+    } else {
+      // The state machine has no failed state after REQUESTED. Record the reason and leave the state alone.
+      await repo.updateConsentRequest(request.id, { lastErrorCode, lastErrorMessage });
+    }
+  }
+  await logAudit({
+    action: 'hiu.consent.notify_error',
+    resourceType: 'consentRequest',
+    resourceId: request?.id ?? null,
+    outcome: 'failure',
+    correlationId,
+    message: request
+      ? `ABDM reported ${lastErrorCode || 'an error'} for a consent request: ${lastErrorMessage}`
+      : `ABDM reported ${lastErrorCode || 'an error'} for a consent request this HIU could not match yet.`,
+  });
+  return request;
+}
+
 export async function handleNotify({ body, requestId, correlationId }) {
   const notification = body?.notification || {};
+  if (body?.error && !notification.status) {
+    return handleNotifyError({ body, correlationId });
+  }
   const request = notification.consentRequestId
     ? await repo.findConsentRequestByExternalId(notification.consentRequestId)
     : null;

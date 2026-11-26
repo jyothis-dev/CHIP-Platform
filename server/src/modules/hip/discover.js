@@ -49,7 +49,7 @@ export function choosePatient(candidates, profile) {
   return narrowed.length === 1 ? narrowed[0] : null;
 }
 
-function groupsFor(patient) {
+function groupsFor(patient, facilityName) {
   const unlinked = (patient.careContexts || []).filter((row) => (
     row.linkStatus === 'NOT_LINKED' && row.healthRecord?.validationStatus === 'VALID'
   ));
@@ -62,7 +62,7 @@ function groupsFor(patient) {
   }
   return [...byType.entries()].map(([hiType, rows]) => ({
     referenceNumber: patient.id,
-    display: 'Facility records',
+    display: facilityName || 'Facility records',
     careContexts: rows.map((row) => ({
       referenceNumber: row.referenceNumber,
       display: row.display,
@@ -89,7 +89,8 @@ export async function answerDiscover({ body, requestId, hiuId, correlationId }) 
   }
   const unique = [...new Map(found.map((row) => [row.id, row])).values()];
   const patient = choosePatient(unique, profile);
-  const patientGroups = patient ? groupsFor(patient) : [];
+  const facility = patient ? await repo.findFacility(patient.facilityId) : null;
+  const patientGroups = patient ? groupsFor(patient, facility?.name) : [];
   const inbound = await repo.createTransaction({
     requestId: requestId || randomUUID(),
     externalTxnId: transactionId || null,

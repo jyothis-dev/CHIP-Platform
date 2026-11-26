@@ -18,6 +18,7 @@ const columns = [
   { key: 'method', label: 'Method' },
   { key: 'path', label: 'Path' },
   { key: 'status', label: 'Status' },
+  { key: 'message', label: 'Response' },
   { key: 'latency', label: 'Time' },
 ];
 
@@ -76,6 +77,7 @@ export default function AbhaTrafficPage() {
                     {row.status ?? 'failed'}
                   </span>
                 </td>
+                <td className="trace-message">{row.message || '—'}</td>
                 <td>{row.latencyMs != null ? `${row.latencyMs} ms` : '—'}</td>
               </tr>
             ))}

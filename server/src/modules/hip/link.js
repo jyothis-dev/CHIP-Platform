@@ -88,12 +88,13 @@ export async function linkCareContextNow({
     careContext,
     demographics,
     token,
+    facilityName,
     actorId,
     correlationId,
   });
 }
 
-async function sendLink({ careContext, demographics, token, actorId, correlationId }) {
+async function sendLink({ careContext, demographics, token, facilityName, actorId, correlationId }) {
   const { transaction } = await callGateway({
     name: 'linkCareContext',
     workflow: 'hip.link',
@@ -104,7 +105,7 @@ async function sendLink({ careContext, demographics, token, actorId, correlation
       abhaAddress: demographics.abhaAddress,
       patient: [{
         referenceNumber: careContext.patientId,
-        display: 'Facility records',
+        display: facilityName || 'Facility records',
         careContexts: [{
           referenceNumber: careContext.referenceNumber,
           display: careContext.display,

@@ -107,6 +107,48 @@ describe('abdmRequest', () => {
     expect(certCall.headers['REQUEST-ID']).toEqual(expect.any(String));
   });
 
+  it('keeps the /v4/int path of the registry host and adds query parameters', async () => {
+    process.env.ABDM_HFR_BASE_URL = 'https://apihspsbx.abdm.gov.in/v4/int';
+    process.env.ABDM_HPR_BASE_URL = 'https://apihspsbx.abdm.gov.in/v4/int/';
+    process.env.ABDM_SANDBOX_HOST_ALLOWLIST = 'dev.abdm.gov.in,abhasbx.abdm.gov.in,apihspsbx.abdm.gov.in';
+    mockRequest
+      .mockResolvedValueOnce({ status: 200, data: { accessToken: 'token-r', expiresIn: 1200 } })
+      .mockResolvedValueOnce({ status: 200, data: [] })
+      .mockResolvedValueOnce({ status: 200, data: true });
+
+    const { abdmRequest, getContract } = await load();
+    const http = { request: mockRequest };
+
+    await abdmRequest({
+      contract: getContract('hfrLgdDistricts'),
+      query: { stateCode: '27', empty: '' },
+      http,
+    });
+    await abdmRequest({
+      contract: getContract('hprExists'),
+      pathParams: { hprId: 'dr.test@hpr.abdm' },
+      http,
+    });
+
+    const districts = mockRequest.mock.calls[1][0];
+    expect(districts.url).toBe('https://apihspsbx.abdm.gov.in/v4/int/v1.5/facility/lgd/districts?stateCode=27');
+    expect(districts.headers.Authorization).toBe('Bearer token-r');
+    expect(districts.headers).not.toHaveProperty('X-CM-ID');
+
+    const exists = mockRequest.mock.calls[2][0];
+    expect(exists.url).toBe('https://apihspsbx.abdm.gov.in/v4/int/v1/search/existsByHprId/dr.test%40hpr.abdm');
+  });
+
+  it('refuses a registry call when its base URL is not configured', async () => {
+    mockRequest.mockResolvedValueOnce({ status: 200, data: { accessToken: 'token-u', expiresIn: 1200 } });
+
+    const { abdmRequest, getContract } = await load();
+    await expect(abdmRequest({
+      contract: getContract('hfrLgdStates'),
+      http: { request: mockRequest },
+    })).rejects.toMatchObject({ statusCode: 503, code: 'ABDM_BASE_UNCONFIGURED' });
+  });
+
   it('stores a redacted request and response when tracing is on', async () => {
     process.env.ABDM_TRACE = 'true';
     mockRequest

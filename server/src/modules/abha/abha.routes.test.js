@@ -24,6 +24,8 @@ jest.unstable_mockModule('./abha.service.js', () => ({
   createAddress: jest.fn(),
   getPatientAbha: mockGetPatientAbha,
   getAbhaCard: jest.fn(),
+  resendOtp: jest.fn(),
+  demographicsForHipLink: jest.fn(),
 }));
 
 process.env.NODE_ENV = 'test';

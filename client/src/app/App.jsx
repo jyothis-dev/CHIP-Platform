@@ -13,6 +13,10 @@ const AbhaEnrolmentPage = lazy(() => import('@/modules/abha/pages/AbhaEnrolment.
 const ActivityLogPage = lazy(() => import('@/modules/audit/pages/ActivityLog.jsx'));
 const AbhaTrafficPage = lazy(() => import('@/modules/abha/pages/AbhaTraffic.jsx'));
 const HipRecordsPage = lazy(() => import('@/modules/hip/pages/HipRecords.jsx'));
+const ConsentRequestsPage = lazy(() => import('@/modules/hiu/pages/ConsentRequests.jsx'));
+const ConsentRequestDetailPage = lazy(() => import('@/modules/hiu/pages/ConsentRequestDetail.jsx'));
+const RegistryLookupPage = lazy(() => import('@/modules/registries/pages/RegistryLookup.jsx'));
+const FacilityLinkPage = lazy(() => import('@/modules/registries/pages/FacilityLink.jsx'));
 
 function Guard({ children }) {
   const { user, ready } = useAuth();
@@ -45,6 +49,9 @@ function Shell({ children }) {
           <Link to="/patients">Patients</Link>
           <Link to="/abha">ABHA enrolment</Link>
           <Link to="/records">Health records</Link>
+          <Link to="/consents">Consents (HIU)</Link>
+          <Link to="/registry">Registry lookup</Link>
+          <Link to="/registry/facility">Facility link</Link>
           <Link to="/activity">Activity log</Link>
           <Link to="/abha-traffic">ABHA traffic</Link>
         </nav>
@@ -75,6 +82,8 @@ function Dashboard() {
         <Link className="btn-primary" to="/patients">Register or select patient</Link>
         <Link className="btn" to="/abha">Open ABHA enrolment</Link>
         <Link className="btn" to="/records">Health records</Link>
+        <Link className="btn" to="/consents">Request records (HIU)</Link>
+        <Link className="btn" to="/registry">Registry lookup</Link>
         <Link className="btn" to="/activity">View activity log</Link>
         <Link className="btn" to="/abha-traffic">ABHA traffic</Link>
       </p>
@@ -127,6 +136,46 @@ export default function App() {
           <Guard>
             <Shell>
               <LazyPage><HipRecordsPage /></LazyPage>
+            </Shell>
+          </Guard>
+        )}
+      />
+      <Route
+        path="/consents"
+        element={(
+          <Guard>
+            <Shell>
+              <LazyPage><ConsentRequestsPage /></LazyPage>
+            </Shell>
+          </Guard>
+        )}
+      />
+      <Route
+        path="/consents/:id"
+        element={(
+          <Guard>
+            <Shell>
+              <LazyPage><ConsentRequestDetailPage /></LazyPage>
+            </Shell>
+          </Guard>
+        )}
+      />
+      <Route
+        path="/registry"
+        element={(
+          <Guard>
+            <Shell>
+              <LazyPage><RegistryLookupPage /></LazyPage>
+            </Shell>
+          </Guard>
+        )}
+      />
+      <Route
+        path="/registry/facility"
+        element={(
+          <Guard>
+            <Shell>
+              <LazyPage><FacilityLinkPage /></LazyPage>
             </Shell>
           </Guard>
         )}

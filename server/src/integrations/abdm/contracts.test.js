@@ -42,6 +42,25 @@ describe('ABDM contracts', () => {
     }
   });
 
+  it('defines the M4 registry contracts on the registry bases with only the documented headers', async () => {
+    const { getContract } = await import('./contracts.js');
+    const search = getContract('hfrSearchFacility');
+    expect(search.method).toBe('POST');
+    expect(search.path).toBe('/FacilityManagement/v1.5/facility/search');
+    expect(search.base).toBe('hfr');
+
+    const link = getContract('hfrBridgeLink');
+    expect(link.path).toBe('/v1/bridges/MutipleHRPAddUpdateServices');
+    expect(link.headers).toEqual(['REQUEST-ID', 'TIMESTAMP', 'Authorization', 'Content-Type']);
+
+    for (const name of ['hprExists', 'hprSearchById', 'hprSearchByMobile', 'hprProfessionalInfo']) {
+      const contract = getContract(name);
+      expect(contract.base).toBe('hpr');
+      expect(contract.headers).not.toContain('X-CM-ID');
+      expect(contract.verifiedOn).toBeTruthy();
+    }
+  });
+
   it('throws 412 CONTRACT_UNVERIFIED when verifiedOn is missing', async () => {
     const { assertContractVerified } = await import('./contracts.js');
     expect(() => assertContractVerified({ path: '/x' }, 'draft')).toThrow(/not verified/);

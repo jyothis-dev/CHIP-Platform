@@ -294,6 +294,11 @@ components:
           nullable: true
         responseBody:
           nullable: true
+        message:
+          type: string
+          nullable: true
+          description: Short text taken from the redacted response, such as an error message or the bridge URL and services.
+          example: Invalid LoginId
         errorMessage:
           type: string
           nullable: true
@@ -1415,6 +1420,150 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /hiu/options:
+    get:
+      summary: Purposes, HI types and access modes from the M3 specification
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Enumerations for the consent request form. claimedHiTypes is what this HIU runs in its functional test.
+  /hiu/readiness:
+    get:
+      summary: HIU readiness (HIU service id, callback base, data push URL, crypto)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: blockers lists what would make an M3 call fail before it is sent.
+  /hiu/consent-requests:
+    get:
+      summary: Consent requests raised by this facility (HIU_FLOW_104)
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { name: patientId, in: query, schema: { type: string, format: uuid } }
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [INIT_SENT, INIT_FAILED, REQUESTED, GRANTED, DENIED, EXPIRED, REVOKED]
+      responses:
+        "200":
+          description: Paged list with patient name, ABHA address, masked ABHA number, HI types, purpose, range, expiry, status and the time of each status change.
+    post:
+      summary: Raise a consent request (POST /api/hiecm/consent/v3/request/init)
+      description: CLINICIAN or ADMIN. Send an Idempotency-Key header to make a retry safe. A refusal from ABDM is stored with the ABDM code and message, and the row is INIT_FAILED.
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: Idempotency-Key, in: header, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [patientId, purposeCode, hiTypes, dateFrom, dateTo, dataEraseAt]
+              properties:
+                patientId: { type: string, format: uuid }
+                purposeCode: { type: string, enum: [CAREMGT, BTG, PUBHLTH, HPAYMT, DSRCH, PATRQT] }
+                hiTypes:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: string
+                    enum: [DiagnosticReport, DischargeSummary, HealthDocumentRecord, ImmunizationRecord, OPConsultation, Prescription, WellnessRecord, Invoice]
+                dateFrom: { type: string, format: date-time }
+                dateTo: { type: string, format: date-time, description: Must not be in the future }
+                dataEraseAt: { type: string, format: date-time, description: Consent expiry in the future }
+                accessMode: { type: string, enum: [VIEW, STORE, STREAM, QUERY], default: VIEW }
+      responses:
+        "201":
+          description: Stored as INIT_SENT, or INIT_FAILED with the ABDM message
+        "403":
+          description: Role is not CLINICIAN or ADMIN
+        "422":
+          description: The patient has no ABHA address ending @sbx or @abdm
+        "503":
+          description: ABDM_HIU_ID is not configured
+  /hiu/consent-requests/{id}:
+    get:
+      summary: One consent request with requested vs granted values, artefacts, transfers and the ABDM timeline
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Detail
+        "404":
+          description: Not found
+  /hiu/consent-requests/{id}/status:
+    post:
+      summary: Ask ABDM for the request status (POST /api/hiecm/consent/v3/request/status)
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "202":
+          description: Sent; the answer arrives on on-status
+  /hiu/artefacts/{id}/fetch:
+    post:
+      summary: Fetch a consent artefact (POST /api/hiecm/consent/v3/fetch)
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "202":
+          description: Sent; the artefact arrives on on-fetch
+  /hiu/artefacts/{id}/health-information:
+    post:
+      summary: Request the records under a granted artefact (POST /api/hiecm/data-flow/v3/health-information/request)
+      description: Generates a fresh Curve25519 key pair and nonce. The range defaults to, and is clamped inside, the granted range.
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dateFrom: { type: string, format: date-time }
+                dateTo: { type: string, format: date-time }
+      responses:
+        "202":
+          description: Sent
+        "409":
+          description: Artefact not granted, revoked, expired or not yet fetched, or no HTTPS data push URL
+  /hiu/artefacts/{id}/records:
+    get:
+      summary: Decrypted records received under one artefact, only for granted HI types
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Records
+        "410":
+          description: CONSENT_REVOKED or CONSENT_EXPIRED, with the time. Records are purged.
+  /hiu/health-information/{id}/status:
+    get:
+      summary: Data flow status from ABDM (GET /api/hiecm/data-flow/v3/health-information/request/status/{transaction-id})
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: The ABDM body, verbatim
   /api/v3/hip/token/on-generate-token:
     post:
       summary: ABDM link-token callback
@@ -1496,3 +1645,69 @@ paths:
           description: Stored
         "401":
           description: Bearer missing or HIP id mismatch
+  /api/v3/hiu/consent/request/on-init:
+    post:
+      summary: ABDM answer to consent request init
+      description: ABDM callback, not a staff route. Requires a bearer and X-HIU-ID equal to ABDM_HIU_ID.
+      responses:
+        "202":
+          description: Stored
+        "401":
+          description: Bearer missing or HIU id mismatch
+        "404":
+          description: Answers no request this HIU sent
+  /api/v3/hiu/consent/request/on-status:
+    post:
+      summary: ABDM answer to consent request status
+      description: ABDM callback, not a staff route. Requires a bearer and X-HIU-ID equal to ABDM_HIU_ID.
+      responses:
+        "202":
+          description: Stored
+        "401":
+          description: Bearer missing or HIU id mismatch
+        "404":
+          description: Answers no request this HIU sent
+  /api/v3/hiu/consent/request/notify:
+    post:
+      summary: ABDM notification - GRANTED, DENIED, EXPIRED or REVOKED
+      description: ABDM callback, not a staff route. Requires a bearer and X-HIU-ID equal to ABDM_HIU_ID.
+      responses:
+        "202":
+          description: Stored
+        "401":
+          description: Bearer missing or HIU id mismatch
+        "404":
+          description: Answers no request this HIU sent
+  /api/v3/hiu/consent/on-fetch:
+    post:
+      summary: ABDM answer to consent fetch, with the artefact
+      description: ABDM callback, not a staff route. Requires a bearer and X-HIU-ID equal to ABDM_HIU_ID.
+      responses:
+        "202":
+          description: Stored
+        "401":
+          description: Bearer missing or HIU id mismatch
+        "404":
+          description: Answers no request this HIU sent
+  /api/v3/hiu/health-information/on-request:
+    post:
+      summary: ABDM answer to a health information request, with the transaction id
+      description: ABDM callback, not a staff route. Requires a bearer and X-HIU-ID equal to ABDM_HIU_ID.
+      responses:
+        "202":
+          description: Stored
+        "401":
+          description: Bearer missing or HIU id mismatch
+        "404":
+          description: Answers no request this HIU sent
+  /api/v3/hiu/health-information/transfer:
+    post:
+      summary: Data push URL. The HIP posts encrypted FHIR bundles here directly.
+      description: Not routed through the gateway. Requires a bearer and an open transaction id. Answers 202, then decrypts.
+      responses:
+        "202":
+          description: Accepted
+        "401":
+          description: Bearer missing
+        "404":
+          description: Names no open health information request

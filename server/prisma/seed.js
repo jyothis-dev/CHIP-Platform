@@ -8,21 +8,29 @@ async function main() {
   const email = process.env.SEED_ADMIN_EMAIL?.toLowerCase();
   const password = process.env.SEED_ADMIN_PASSWORD;
   const name = process.env.SEED_ADMIN_NAME || 'Demo Staff';
+  // M3: raising consent requests and viewing received records needs CLINICIAN or ADMIN.
+  const role = ['ADMIN', 'CLINICIAN', 'STAFF'].includes(process.env.SEED_ADMIN_ROLE)
+    ? process.env.SEED_ADMIN_ROLE
+    : 'STAFF';
   if (!email || !password) {
     throw new Error('SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD are required');
   }
 
   const passwordHash = await hashPassword(password);
-  const facilityName = 'Demo Facility';
+  const facilityName = 'Cyber Hospital';
   let facility = await prisma.facility.findFirst({ where: { name: facilityName } });
   if (!facility) {
-    facility = await prisma.facility.create({ data: { name: facilityName } });
+    // Earlier seeds named the same facility 'Sahyadri Hospital' or 'Demo Facility'; rename it in place.
+    facility = await prisma.facility.findFirst({ where: { name: { in: ['Sahyadri Hospital', 'Demo Facility'] } } });
+    facility = facility
+      ? await prisma.facility.update({ where: { id: facility.id }, data: { name: facilityName } })
+      : await prisma.facility.create({ data: { name: facilityName } });
   }
 
   const user = await prisma.user.upsert({
     where: { email },
-    update: { name, passwordHash, role: 'STAFF', facilityId: facility.id },
-    create: { name, email, passwordHash, role: 'STAFF', facilityId: facility.id },
+    update: { name, passwordHash, role, facilityId: facility.id },
+    create: { name, email, passwordHash, role, facilityId: facility.id },
   });
 
   const demoPatientId = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';

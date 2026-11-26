@@ -22,6 +22,16 @@ const SENSITIVE_KEYS = [
   'entries',
   'content',
   'fhirBundle',
+  'hprId',
+  'hprToken',
+  'hpr_token',
+  'x-hprid-auth',
+  'x-hprid-auth-verifier',
+  'contactNumber',
+  'registrationNumber',
+  'officialMobile',
+  'officialEmail',
+  'mobile',
 ];
 
 function pathSegment(key) {

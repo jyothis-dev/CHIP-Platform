@@ -8,10 +8,23 @@ datasource db {
   schemas  = ["public", "chip"]
 }
 
+enum HiuRequestStatus {
+  INIT_SENT
+  INIT_FAILED
+  REQUESTED
+  GRANTED
+  DENIED
+  EXPIRED
+  REVOKED
+
+  @@schema("chip")
+}
+
 enum UserRole {
   ADMIN
   CLINICIAN
   STAFF
+
   @@schema("chip")
 }
 
@@ -19,6 +32,7 @@ enum PatientType {
   MOTHER
   CHILD
   GENERAL
+
   @@schema("chip")
 }
 
@@ -27,6 +41,7 @@ enum EncounterType {
   DELIVERY
   CHILD_FOLLOW_UP
   IMMUNIZATION
+
   @@schema("chip")
 }
 
@@ -34,6 +49,7 @@ enum ValidationStatus {
   VALID
   INVALID
   UNVERIFIED
+
   @@schema("chip")
 }
 
@@ -43,12 +59,14 @@ enum ConsentStatus {
   DENIED
   EXPIRED
   REVOKED
+
   @@schema("chip")
 }
 
 enum ExchangeRole {
   HIU
   HIP
+
   @@schema("chip")
 }
 
@@ -57,6 +75,7 @@ enum LinkStatus {
   LINK_REQUESTED
   LINKED
   FAILED
+
   @@schema("chip")
 }
 
@@ -65,18 +84,21 @@ enum Milestone {
   M2
   M3
   M4
+
   @@schema("chip")
 }
 
 enum TransactionDirection {
   OUTBOUND
   INBOUND
+
   @@schema("chip")
 }
 
 enum TransferDirection {
   PUSH
   RECEIVE
+
   @@schema("chip")
 }
 
@@ -87,6 +109,7 @@ enum CallbackProcessingStatus {
   ORPHANED
   RETRY
   DEAD
+
   @@schema("chip")
 }
 
@@ -126,19 +149,23 @@ model RefreshToken {
 }
 
 model Facility {
-  id            String         @id @default(uuid())
-  name          String
-  hfrId         String?        @unique
-  hfrVerifiedAt DateTime?
-  hfrStatus     String?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  users         User[]
-  practitioners Practitioner[]
-  patients      Patient[]
-  encounters    Encounter[]
-  careContexts  CareContext[]
-  auditLogs     AuditLog[]
+  id               String         @id @default(uuid())
+  name             String
+  hfrId            String?        @unique
+  hfrVerifiedAt    DateTime?
+  hfrStatus        String?
+  // M4: roles ("HIP", "HIU") last observed on bridge-services for this facility.
+  hfrRoles         String[]       @default([])
+  hipName          String?
+  hfrLinkCheckedAt DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  users            User[]
+  practitioners    Practitioner[]
+  patients         Patient[]
+  encounters       Encounter[]
+  careContexts     CareContext[]
+  auditLogs        AuditLog[]
 
   @@map("facilities")
   @@schema("chip")
@@ -185,6 +212,8 @@ model Patient {
   healthRecords      HealthRecord[]
   careContexts       CareContext[]
   linkTokens         LinkToken[]
+  consentRequests    ConsentRequest[]
+  receivedRecords    ReceivedHealthRecord[]
 
   @@index([facilityId])
   @@index([facilityId, name])
@@ -307,7 +336,7 @@ model LinkToken {
 }
 
 model CareContext {
-  id              String          @id @default(uuid())
+  id              String           @id @default(uuid())
   facilityId      String
   patientId       String
   encounterId     String?
@@ -317,12 +346,12 @@ model CareContext {
   linkStatus      LinkStatus
   linkedAt        DateTime?
   transactionId   String?
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  facility        Facility        @relation(fields: [facilityId], references: [id])
-  patient         Patient         @relation(fields: [patientId], references: [id])
-  encounter       Encounter?      @relation(fields: [encounterId], references: [id])
-  healthRecord    HealthRecord?   @relation(fields: [healthRecordId], references: [id])
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  facility        Facility         @relation(fields: [facilityId], references: [id])
+  patient         Patient          @relation(fields: [patientId], references: [id])
+  encounter       Encounter?       @relation(fields: [encounterId], references: [id])
+  healthRecord    HealthRecord?    @relation(fields: [healthRecordId], references: [id])
   transaction     ABDMTransaction? @relation(fields: [transactionId], references: [id])
   dataTransfers   DataTransfer[]
 
@@ -334,43 +363,71 @@ model CareContext {
 
 model ConsentRequest {
   id                       String            @id @default(uuid())
+  patientId                String?
+  facilityId               String?
+  createdById              String?
   patientAbhaAddress       String
   purposeCode              String
+  purposeText              String?
+  purposeRefUri            String?
   hiTypes                  String[]
+  accessMode               String?
+  frequency                Json?
   dateFrom                 DateTime
   dateTo                   DateTime
   expiresAt                DateTime
-  externalConsentRequestId String?
-  status                   ConsentStatus
+  dataEraseAt              DateTime?
+  requesterName            String?
+  externalConsentRequestId String?           @unique
+  status                   HiuRequestStatus
+  statusChangedAt          DateTime?
+  grantedAt                DateTime?
+  deniedAt                 DateTime?
+  expiredAt                DateTime?
+  revokedAt                DateTime?
+  lastErrorCode            String?
+  lastErrorMessage         String?
   transactionId            String
   createdAt                DateTime          @default(now())
   updatedAt                DateTime          @updatedAt
   transaction              ABDMTransaction   @relation(fields: [transactionId], references: [id])
+  patient                  Patient?          @relation(fields: [patientId], references: [id])
   artefacts                ConsentArtefact[]
 
-  @@index([externalConsentRequestId])
+  @@index([patientId, createdAt])
+  @@index([status])
   @@map("consent_requests")
   @@schema("chip")
 }
 
 model ConsentArtefact {
-  id                    String                     @id @default(uuid())
-  role                  ExchangeRole
-  externalArtefactId    String
-  consentRequestId      String?
-  patientRef            String
-  hipId                 String
-  hiTypes               String[]
-  careContextRefs       String[]
-  dateFrom              DateTime
-  dateTo                DateTime
-  expiresAt             DateTime
-  status                String
-  revokedAt             DateTime?
-  createdAt             DateTime                   @default(now())
-  updatedAt             DateTime                   @updatedAt
-  consentRequest        ConsentRequest?            @relation(fields: [consentRequestId], references: [id])
-  informationRequests   HealthInformationRequest[]
+  id                  String                     @id @default(uuid())
+  role                ExchangeRole
+  externalArtefactId  String
+  consentRequestId    String?
+  patientRef          String?
+  hipId               String?
+  hipName             String?
+  hiTypes             String[]
+  careContextRefs     String[]
+  careContexts        Json?
+  accessMode          String?
+  dateFrom            DateTime?
+  dateTo              DateTime?
+  expiresAt           DateTime?
+  status              String
+  revokedAt           DateTime?
+  expiredAt           DateTime?
+  fetchedAt           DateTime?
+  lastFetchRequestId  String?
+  signature           String?
+  lastErrorCode       String?
+  lastErrorMessage    String?
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
+  consentRequest      ConsentRequest?            @relation(fields: [consentRequestId], references: [id])
+  informationRequests HealthInformationRequest[]
+  receivedRecords     ReceivedHealthRecord[]
 
   @@unique([role, externalArtefactId])
   @@map("consent_artefacts")
@@ -378,18 +435,30 @@ model ConsentArtefact {
 }
 
 model HealthInformationRequest {
-  id                    String         @id @default(uuid())
+  id                    String          @id @default(uuid())
   role                  ExchangeRole
   consentArtefactId     String
   externalTransactionId String?
   dataPushUrl           String?
   status                String
   keyExpiresAt          DateTime?
-  createdAt             DateTime       @default(now())
-  updatedAt             DateTime       @updatedAt
+  requestId             String?
+  privateKeyEnc         String?
+  nonce                 String?
+  dateFrom              DateTime?
+  dateTo                DateTime?
+  pagesExpected         Int?
+  pagesReceived         Int             @default(0)
+  sessionStatus         String?
+  lastErrorCode         String?
+  lastErrorMessage      String?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
   consentArtefact       ConsentArtefact @relation(fields: [consentArtefactId], references: [id])
   dataTransfers         DataTransfer[]
 
+  @@index([externalTransactionId])
+  @@index([requestId])
   @@map("health_information_requests")
   @@schema("chip")
 }
@@ -397,7 +466,10 @@ model HealthInformationRequest {
 model DataTransfer {
   id                         String                   @id @default(uuid())
   healthInformationRequestId String
-  careContextId              String
+  careContextId              String?
+  careContextReference       String?
+  hipId                      String?
+  pageNumber                 Int?
   direction                  TransferDirection
   externalTransferRef        String?
   correlationId              String?
@@ -413,15 +485,43 @@ model DataTransfer {
   createdAt                  DateTime                 @default(now())
   updatedAt                  DateTime                 @updatedAt
   healthInformationRequest   HealthInformationRequest @relation(fields: [healthInformationRequestId], references: [id])
-  careContext                CareContext              @relation(fields: [careContextId], references: [id])
+  careContext                CareContext?             @relation(fields: [careContextId], references: [id])
+  receivedRecords            ReceivedHealthRecord[]
 
   @@map("data_transfers")
   @@schema("chip")
 }
 
+/// Health records received as an HIU (M3), re-encrypted at rest and purged when consent ends.
+model ReceivedHealthRecord {
+  id                   String           @id @default(uuid())
+  dataTransferId       String
+  consentArtefactId    String
+  patientId            String?
+  careContextReference String
+  hiType               String?
+  bundleEnc            String?
+  checksumOk           Boolean
+  validationStatus     ValidationStatus
+  validationProblems   Json?
+  byteLength           Int
+  receivedAt           DateTime         @default(now())
+  purgedAt             DateTime?
+  purgeReason          String?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  dataTransfer         DataTransfer     @relation(fields: [dataTransferId], references: [id])
+  consentArtefact      ConsentArtefact  @relation(fields: [consentArtefactId], references: [id])
+  patient              Patient?         @relation(fields: [patientId], references: [id])
+
+  @@index([consentArtefactId])
+  @@map("received_health_records")
+  @@schema("chip")
+}
+
 model ABDMTransaction {
-  id                 String                @id @default(uuid())
-  requestId          String                @unique
+  id                 String               @id @default(uuid())
+  requestId          String               @unique
   externalTxnId      String?
   milestone          Milestone
   workflow           String
@@ -429,14 +529,14 @@ model ABDMTransaction {
   status             String
   externalStatus     String?
   correlationId      String
-  attempts           Int                   @default(0)
+  attempts           Int                  @default(0)
   nextAttemptAt      DateTime?
   callbackDeadlineAt DateTime?
   lastErrorCode      String?
   safeMetadata       Json?
   evidenceLabel      String
-  createdAt          DateTime              @default(now())
-  updatedAt          DateTime              @updatedAt
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
   callbackEvents     CallbackEvent[]
   consentRequests    ConsentRequest[]
   careContexts       CareContext[]

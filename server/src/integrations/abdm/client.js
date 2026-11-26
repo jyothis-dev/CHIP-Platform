@@ -13,7 +13,20 @@ function utcTimestamp() {
 function baseUrlFor(contract) {
   if (contract.base === 'gateway') return env.abdmGatewayBaseUrl;
   if (contract.base === 'abha') return env.abdmAbhaBaseUrl;
+  // M4 registries live under a path (for example /v4/int) that new URL() would drop.
+  if (contract.base === 'hfr') return env.abdmHfrBaseUrl;
+  if (contract.base === 'hpr') return env.abdmHprBaseUrl;
   throw new AppError(500, 'ABDM_BASE_UNKNOWN', `Unknown ABDM base: ${contract.base}`);
+}
+
+function buildUrl(contract, baseUrl, path, query) {
+  const url = contract.base === 'hfr' || contract.base === 'hpr'
+    ? new URL(`${baseUrl.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`)
+    : new URL(path, baseUrl);
+  for (const [key, value] of Object.entries(query || {})) {
+    if (value != null && value !== '') url.searchParams.set(key, String(value));
+  }
+  return url.toString();
 }
 
 function buildHeaders(contract, {
@@ -62,6 +75,8 @@ function buildHeaders(contract, {
   }
   if (contract.headers.includes('X-HIU-ID') && hiuId) {
     headers['X-HIU-ID'] = hiuId;
+  } else if (contract.headers.includes('X-HIU-ID') && contract.requiresHiuId) {
+    throw new AppError(503, 'HIU_ID_MISSING', 'ABDM_HIU_ID is not configured');
   }
 
   return headers;
@@ -76,6 +91,8 @@ async function sendOnce(contract, {
   hipId,
   linkToken,
   hiuId,
+  pathParams,
+  query,
 }) {
   const baseUrl = baseUrlFor(contract);
   if (!baseUrl) {
@@ -83,7 +100,14 @@ async function sendOnce(contract, {
   }
 
   const requestId = randomUUID();
-  const url = new URL(contract.path, baseUrl).toString();
+  const path = contract.path.replace(/\{([^}]+)\}/g, (_m, key) => {
+    const value = pathParams?.[key];
+    if (value == null || value === '') {
+      throw new AppError(400, 'ABDM_PATH_PARAM_MISSING', `Missing path parameter: ${key}`);
+    }
+    return encodeURIComponent(String(value));
+  });
+  const url = buildUrl(contract, baseUrl, path, query);
   const headers = buildHeaders(contract, {
     requestId,
     accessToken,
@@ -168,6 +192,8 @@ export async function abdmRequest({
   hipId = env.abdmHipId,
   linkToken,
   hiuId,
+  pathParams,
+  query,
 }) {
   let token = null;
   if (contract.auth !== 'none') {
@@ -182,6 +208,8 @@ export async function abdmRequest({
     hipId,
     linkToken,
     hiuId,
+    pathParams,
+    query,
   };
 
   let result = await sendOnce(contract, {

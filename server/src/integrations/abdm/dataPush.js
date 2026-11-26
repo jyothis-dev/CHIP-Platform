@@ -1,7 +1,12 @@
 import axios from 'axios';
 import { AppError } from '../../shared/errors.js';
+import { getGatewayToken } from './session.js';
 
-export async function pushHealthInformation({ url, body, http = axios }) {
+/**
+ * The HIP posts to the HIU's dataPushUrl directly, with the gateway access
+ * token as the bearer (hiecm.callback.m2-on-data-notification).
+ */
+export async function pushHealthInformation({ url, body, http = axios, token }) {
   let parsed;
   try {
     parsed = new URL(url);
@@ -12,12 +17,13 @@ export async function pushHealthInformation({ url, body, http = axios }) {
     throw new AppError(400, 'DATA_PUSH_URL_INVALID', 'The health information push URL must use HTTPS');
   }
 
+  const bearer = token ?? (await getGatewayToken({ http })).accessToken;
   try {
     const response = await http.request({
       method: 'POST',
       url: parsed.toString(),
       data: body,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${bearer}` },
       timeout: 30_000,
       maxRedirects: 0,
       validateStatus: () => true,

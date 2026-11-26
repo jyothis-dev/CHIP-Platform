@@ -71,6 +71,7 @@ describe('ABHA traffic when tracing is on', () => {
     expect(res.body.data.total).toBe(41);
     expect(res.body.data.items[0].status).toBe(400);
     expect(res.body.data.items[0].responseBody.message).toBe('Invalid LoginId');
+    expect(res.body.data.items[0].message).toBe('Invalid LoginId');
     expect(prismaMock.abdmTrace.findMany).toHaveBeenCalledWith(expect.objectContaining({
       orderBy: { createdAt: 'desc' },
       skip: 0,
@@ -94,6 +95,16 @@ describe('ABHA traffic when tracing is on', () => {
       skip: 20,
       take: 10,
     }));
+  });
+
+  it('summarizes a bridge-services body that has no message field', async () => {
+    const { responseText } = await import('../../integrations/abdm/trace.js');
+    expect(responseText({
+      bridge: { url: 'https://example.ngrok-free.app', active: true },
+      services: [{ id: 'IN2710000000', types: ['HIP'] }],
+    }, null)).toBe('url https://example.ngrok-free.app. bridge active. services IN2710000000 (HIP)');
+    expect(responseText({ bridge: { url: 'https://example.ngrok-free.app', active: false }, services: [] }, null))
+      .toBe('url https://example.ngrok-free.app. bridge inactive. services empty');
   });
 
   it('returns 400 when the page is not a positive integer', async () => {

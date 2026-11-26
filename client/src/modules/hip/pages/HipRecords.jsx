@@ -69,7 +69,6 @@ export default function HipRecordsPage() {
         patientName: selected.name,
         gender: selected.gender,
         birthDate: selected.dateOfBirth ? String(selected.dateOfBirth).slice(0, 10) : undefined,
-        facilityName: 'Facility',
       });
       setPreview(data);
     } catch (err) {

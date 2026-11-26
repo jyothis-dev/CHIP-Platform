@@ -1,0 +1,52 @@
+.registry-line {
+  display: block;
+}
+
+.registry-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.75rem 1rem;
+}
+
+.registry-tabs {
+  display: flex;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--border, #d0d5dd);
+}
+
+.registry-tab {
+  background: none;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  font: inherit;
+}
+
+.registry-tab-active {
+  border-bottom-color: var(--accent, #1d4ed8);
+  font-weight: 600;
+}
+
+.registry-roles {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  border: 0;
+  padding: 0;
+}
+
+.registry-ids {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.registry-json {
+  overflow: auto;
+  max-height: 24rem;
+  padding: 0.75rem;
+  background: var(--surface-muted, #f2f4f7);
+  border-radius: 6px;
+}

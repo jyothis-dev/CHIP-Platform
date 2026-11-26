@@ -16,6 +16,12 @@
   cursor: pointer;
 }
 
+.trace-message {
+  max-width: 420px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .trace-detail {
   display: grid;
   gap: 8px;

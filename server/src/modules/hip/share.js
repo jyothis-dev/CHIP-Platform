@@ -3,7 +3,7 @@ import { env } from '../../config/env.js';
 import { logAudit } from '../../shared/audit.js';
 import { decryptAbhaNumberAtRest } from '../abha/abha.crypto.js';
 import { pushHealthInformation } from '../../integrations/abdm/dataPush.js';
-import { openSession } from '../../integrations/abdm/fidelius.js';
+import { KEY_PARAMETERS, openSession } from '../../integrations/abdm/fidelius.js';
 import * as repo from './hip.repository.js';
 import { callGateway } from './gateway.js';
 
@@ -139,7 +139,8 @@ export async function fulfilInformationRequest({ body, requestId, correlationId 
     entries.push({
       content,
       media: 'application/fhir+json',
-      checksum: createHash('md5').update(content).digest('hex'),
+      // ABDM: checksum is the MD5 of the content before encryption (hiecm.callback.m2-on-data-notification).
+      checksum: createHash('md5').update(plaintext).digest('hex'),
       careContextReference: ref,
     });
     await repo.createTransfer({
@@ -174,10 +175,10 @@ export async function fulfilInformationRequest({ body, requestId, correlationId 
       entries,
       keyMaterial: {
         cryptoAlg: 'ECDH',
-        curve: 'Curve25519',
+        curve: 'curve25519',
         dhPublicKey: {
           expiry: infoRequest.keyExpiresAt.toISOString(),
-          parameters: 'Curve25519/32byte random key',
+          parameters: KEY_PARAMETERS,
           keyValue: session.publicKey,
         },
         nonce: session.nonce,

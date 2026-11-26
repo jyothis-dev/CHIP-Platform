@@ -37,6 +37,7 @@ One row per sandbox execution. References are masked (e.g. `txn …a91f`). Scree
 | M2 | FHIR validation | 2026-11-25 | local Jest | mocked | `fhir/bundle.test.js` valid immunization bundle and dangling reference. Not sandbox | IMPLEMENTED_NOT_SANDBOX_TESTED | no | |
 | M2 | HIP-initiated link + callback | 2026-11-25 | local Jest | mocked | Callback without bearer is 401. Duplicate callback returns 202 and does not process again. No sandbox request id | IMPLEMENTED_NOT_SANDBOX_TESTED | no | |
 | M2 | HI request handled with consent check | 2026-11-25 | local Jest | mocked | Missing, expired, and wrong care-context consents are refused before a push. No sandbox request id | IMPLEMENTED_NOT_SANDBOX_TESTED | no | |
+| M2 | Register bridge URL | 2026-11-26 21:03 IST | sandbox gateway | request `94913168` | `PATCH /api/hiecm/gateway/v3/bridge/url` 202, then bridge-services shows that URL, `bridge.active` true, and a HIP service | HTTP 202. The following bridge-services call matched the callback URL and `bridge.active` true. `services` had no HIP entry. | IMPLEMENTED_NOT_SANDBOX_TESTED | Server log for request `94913168-0795-44e9-a769-3808a6384576` |
 | M3 | Consent request + status callback | | sandbox | | | | | |
 | M3 | Consent GRANTED / DENIED / REVOKED handling | | sandbox | | | | | |
 | M3 | Health information transfer | | sandbox | | | | | |

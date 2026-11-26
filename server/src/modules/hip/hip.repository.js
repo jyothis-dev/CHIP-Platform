@@ -136,9 +136,9 @@ export function createConsentArtefact(data) {
   return prisma.consentArtefact.create({ data });
 }
 
-export function findConsentByExternalId(externalArtefactId) {
+export function findConsentByExternalId(externalArtefactId, role = 'HIP') {
   return prisma.consentArtefact.findUnique({
-    where: { role_externalArtefactId: { role: 'HIP', externalArtefactId } },
+    where: { role_externalArtefactId: { role, externalArtefactId } },
   });
 }
 

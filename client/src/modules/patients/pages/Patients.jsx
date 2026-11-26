@@ -297,6 +297,11 @@ export default function PatientsPage() {
             <Link className="btn-primary" to={`/abha?patientId=${selected.id}`}>
               Continue to ABHA
             </Link>
+            {selected.abha?.abhaAddress ? (
+              <Link className="btn" to={`/consents?patientId=${selected.id}`}>
+                Request records
+              </Link>
+            ) : null}
             <Button variant="ghost" onClick={() => setSelected(null)}>
               Close
             </Button>

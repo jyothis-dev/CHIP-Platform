@@ -37,6 +37,7 @@ export const prismaMock = {
   healthInformationRequest: model(),
   dataTransfer: model(),
   practitioner: model(),
+  receivedHealthRecord: model(),
   $transaction: jest.fn(async (arg) => (typeof arg === 'function' ? arg(prismaMock) : Promise.all(arg))),
   $queryRaw: jest.fn(),
 };

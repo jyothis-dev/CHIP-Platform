@@ -29,6 +29,26 @@ const SENSITIVE_KEYS = new Set([
   'phoneno',
   'mobile',
   'mobileenc',
+  // M3: consent.patient.id and careContexts[].patientReference carry the ABHA address.
+  'patient',
+  'patientreference',
+  'nonce',
+  'privatekeyenc',
+  'privatekeypkcs8',
+  'signature',
+  // M4 registries: professional identifiers and contact details are not stored in traces.
+  'hprid',
+  'hpridnumber',
+  'hpr_id',
+  'hprtoken',
+  'hpr_token',
+  'x-hprid-auth',
+  'x-hprid-auth-verifier',
+  'contactnumber',
+  'registrationnumber',
+  'officialmobile',
+  'officialemail',
+  'emailaddress',
 ]);
 
 function isSensitive(key) {

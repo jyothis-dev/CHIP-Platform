@@ -12,6 +12,7 @@ process.env.ABDM_HPR_BASE_URL = '';
 process.env.ABDM_SANDBOX_HOST_ALLOWLIST = '';
 process.env.ABDM_CLIENT_ID = '';
 process.env.ABDM_CLIENT_SECRET = '';
+process.env.ABDM_BRIDGE_ID = '';
 process.env.ABDM_CM_ID = 'sbx';
 process.env.ABDM_BENEFIT_NAME = '';
 process.env.ABHA_ENC_KEY = Buffer.alloc(32, 7).toString('base64');

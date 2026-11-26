@@ -5,7 +5,11 @@ import * as repo from './hip.repository.js';
 import { acceptCallback } from './callbacks.js';
 
 export async function inspect(req, res) {
-  const data = records.inspectBundle(req.validated.body);
+  const facility = await repo.findFacility(req.auth.facilityId);
+  const data = records.inspectBundle({
+    ...req.validated.body,
+    facilityName: facility?.name,
+  });
   res.status(200).json({ success: true, data });
 }
 

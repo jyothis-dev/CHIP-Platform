@@ -239,6 +239,7 @@ describe('API', () => {
       '/health',
       '/hip/bridge/url',
       '/hip/bundles/inspect',
+      '/hip/care-contexts/{id}/retry',
       '/hip/exchanges',
       '/hip/patients/{id}/records',
       '/hip/readiness',

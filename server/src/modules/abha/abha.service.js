@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { env } from '../../config/env.js';
 import { AppError } from '../../shared/errors.js';
 import { logger } from '../../shared/logger.js';
 import { logAudit } from '../../shared/audit.js';
@@ -23,7 +24,9 @@ import {
   addressTaken,
   ADDRESS_EXISTS_MESSAGE,
   communicationMobileNeedsOtp,
+  demographicsFromProfile,
   displayAbhaNumber,
+  fullAbhaAddress,
   MAX_OTP_RESENDS,
   OTP_VALID_MS,
   profileFromEnrolment,
@@ -421,10 +424,26 @@ export async function verifyAadhaarOtp({
     abhaNumberHash: hashAbhaNumber(abhaNumber),
     hashKeyVersion: keyVersion,
     abhaNumberMasked: masked,
-    abhaAddress: result.body?.preferredAbhaAddress || null,
+    abhaAddress: fullAbhaAddress(result.body?.preferredAbhaAddress, env.abdmCmId),
     verificationStatus: 'VERIFIED',
     verifiedAt: new Date(),
   });
+
+  // ABDM compares M2 link requests with the Aadhaar record, so keep the patient in line with the ABHA profile.
+  const abdmDemographics = demographicsFromProfile(result.body);
+  if (Object.keys(abdmDemographics).length) {
+    await repo.updatePatientDemographics(patientId, abdmDemographics);
+    await logAudit({
+      actorId,
+      facilityId,
+      action: 'abha.enrol.sync_demographics',
+      resourceType: 'patient',
+      resourceId: patientId,
+      outcome: 'success',
+      correlationId: correlationId || transaction.correlationId,
+      message: `Patient details were set from the ABHA profile (${Object.keys(abdmDemographics).join(', ')}).`,
+    });
+  }
 
   const { token, refreshToken } = extractTokens(result.body);
   const profile = profileFromEnrolment(result.body);
@@ -445,6 +464,8 @@ export async function verifyAadhaarOtp({
     userToken: token,
     refreshToken,
     abhaNumberMasked: masked,
+    // Addresses already on this ABHA. Only one of these may be "used" instead of created.
+    existingAddresses: profile.phrAddress,
     externalTxnId: result.body?.txnId || transaction.externalTxnId,
     patientId,
     needsMobileVerify,
@@ -660,10 +681,20 @@ export async function createAddress({
   const wireAddress = rules.wire || abhaAddress;
 
   if (useExisting) {
+    // ABDM says "already exists" for any taken address, including another person's. Accept only one on this ABHA.
+    const known = getEnrolmentSession(transactionId)?.existingAddresses || [];
+    const local = (value) => String(value || '').split('@')[0].trim().toLowerCase();
+    if (known.length && !known.some((item) => local(item) === local(wireAddress))) {
+      throw new AppError(
+        409,
+        'ABHA_ADDRESS_NOT_YOURS',
+        'That address is not on this ABHA. Choose one of the addresses listed for it, or create another.',
+      );
+    }
     const identity = await repo.findAbhaIdentity(patientId);
     if (identity) {
       await repo.updateAbhaAddress(patientId, {
-        abhaAddress: wireAddress,
+        abhaAddress: fullAbhaAddress(wireAddress, env.abdmCmId),
         abhaNumberMasked: identity.abhaNumberMasked,
       });
     }
@@ -736,7 +767,7 @@ export async function createAddress({
   const identity = await repo.findAbhaIdentity(patientId);
   if (identity) {
     await repo.updateAbhaAddress(patientId, {
-      abhaAddress: preferred,
+      abhaAddress: fullAbhaAddress(preferred, env.abdmCmId),
       abhaNumberMasked: masked || identity.abhaNumberMasked,
     });
   }
@@ -835,7 +866,7 @@ export async function demographicsForHipLink({ patientId, facilityId }) {
     verified: true,
     patient,
     yearOfBirth,
-    abhaAddress: identity.abhaAddress,
+    abhaAddress: fullAbhaAddress(identity.abhaAddress, env.abdmCmId),
     abhaNumber: decryptAbhaNumberAtRest(identity.abhaNumberEnc),
     name: patient.name,
     gender: patient.gender,

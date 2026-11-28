@@ -6,6 +6,7 @@ import { logger } from '../../shared/logger.js';
 import { assertIdempotency, saveIdempotency } from '../abha/abha.repository.js';
 import { callGateway, upstreamCode, upstreamMessage } from '../hip/gateway.js';
 import * as repo from './hiu.repository.js';
+import { fullAbhaAddress } from '../abha/abhaFlow.js';
 import { ABHA_ADDRESS_RE, PURPOSES, TERMINAL_STATES } from './constants.js';
 
 const WORKFLOW = {
@@ -101,7 +102,7 @@ export async function raiseConsentRequest({
   if (!patient || patient.facilityId !== auth.facilityId) {
     throw new AppError(404, 'PATIENT_NOT_FOUND', 'Patient not found');
   }
-  const abhaAddress = patient.abhaIdentity?.abhaAddress || '';
+  const abhaAddress = fullAbhaAddress(patient.abhaIdentity?.abhaAddress, env.abdmCmId) || '';
   if (!ABHA_ADDRESS_RE.test(abhaAddress)) {
     throw new AppError(422, 'ABHA_ADDRESS_REQUIRED', 'The patient has no ABHA address ending @sbx or @abdm. Create or link one first.');
   }

@@ -1223,6 +1223,33 @@ paths:
                 success: false
                 code: UNAUTHENTICATED
                 message: Authentication required
+  /hip/care-contexts/{id}/retry:
+    post:
+      summary: Retry the link of a failed care context
+      description: >
+        Only a care context whose link FAILED can be retried. It is refused when ABDM said the
+        care context is already linked (409 ALREADY_LINKED), when the ABHA is not verified, or when
+        the record has no valid bundle. The response carries ABDM's own code and message, and a hint.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The link was sent again, or failed again with the reason in link.code and link.message
+        "400":
+          description: The patient has no date of birth
+        "401":
+          description: Authentication required
+        "404":
+          description: Care context not found in this facility
+        "409":
+          description: Not retryable (NOT_RETRYABLE, ALREADY_LINKED, ABHA_NOT_VERIFIED, RECORD_NOT_LINKABLE)
   /hip/patients/{id}/records:
     get:
       summary: Care contexts for one patient

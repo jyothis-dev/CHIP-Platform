@@ -10,7 +10,8 @@
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "prisma:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "db:reset-patient-data": "node prisma/reset-patient-data.js"
   },
   "engines": {
     "node": ">=20"

@@ -7,9 +7,83 @@ import {
 } from '../abha/abha.crypto.js';
 import { demographicsForHipLink } from '../abha/abha.service.js';
 import * as repo from './hip.repository.js';
-import { callGateway } from './gateway.js';
+import { callGateway, upstreamMessage } from './gateway.js';
 
 const SIX_MONTHS = 6;
+
+const ABHA_ADDRESS_FORMAT = /^[a-zA-Z0-9][a-zA-Z0-9_.]+[a-zA-Z0-9]@(abdm|sbx)$/;
+const NAME_FORMAT = /^[a-zA-Z]+(([',. -][a-zA-Z ])?[a-zA-Z]*)*$/;
+const GENDERS = new Set(['M', 'F', 'O', 'D', 'T', 'U']);
+
+/**
+ * Check the generate-token body against the documented patterns before anything is sent.
+ * ABDM remembers a refused request and rate-limits repeats (ABDM-1092, ABDM-1022, ABDM-1027),
+ * so an input that cannot be accepted must never reach the gateway.
+ */
+export function linkInputProblems(demographics) {
+  const problems = [];
+  if (!ABHA_ADDRESS_FORMAT.test(String(demographics?.abhaAddress || ''))) {
+    problems.push('ABHA address must look like name@sbx');
+  }
+  if (!NAME_FORMAT.test(String(demographics?.name || '').trim())) {
+    problems.push("name may contain only letters and the characters ' , . -");
+  }
+  if (!GENDERS.has(String(demographics?.gender || ''))) {
+    problems.push('gender must be one of M, F, O, D, T, U');
+  }
+  const year = Number(demographics?.yearOfBirth);
+  if (!Number.isInteger(year) || year < 1900 || year > 2200) {
+    problems.push('year of birth must be between 1900 and 2200');
+  }
+  return problems;
+}
+
+export const DUPLICATE_LINK_MESSAGE = 'Duplicate HIP link request';
+
+/** ABDM-1092: a refused link token request is remembered, so an identical retry is refused (hiecm.concept.m2-retry-is-a-duplicate). */
+export function isDuplicateLinkToken(rawCode, message) {
+  return cleanErrorCode(rawCode) === 'ABDM-1092' || String(message || '').toLowerCase().includes('duplicate link token request');
+}
+
+/** False when a retry cannot succeed: it would only repeat the refusal and risk ABDM's rate limit. */
+export function linkRetryable(code, message) {
+  return !isDuplicateLinkToken(code, message)
+    && !String(message || '').toLowerCase().includes(DUPLICATE_LINK_MESSAGE.toLowerCase());
+}
+
+/**
+ * Plain-words next step for a failed link. ABDM-9999 is a catch-all, so the message decides
+ * (catalogue atom hiecm.error.abdm-9999). Returns null when there is nothing safe to add.
+ */
+/** ABDM sometimes sends a code with a trailing separator, `ABDM-1207: `. */
+export function cleanErrorCode(code) {
+  const text = String(code || '').replace(/:\s*$/, '').trim();
+  return text || null;
+}
+
+export function linkFailureHint(rawCode, message) {
+  const code = cleanErrorCode(rawCode);
+  const text = String(message || '').toLowerCase();
+  if (isDuplicateLinkToken(code, message)) {
+    return 'ABDM remembers the earlier refusal and treats a repeat as a duplicate, so this is not a new failure. Do not retry. The earlier failed exchange for this patient holds the real cause.';
+  }
+  if (text.includes(DUPLICATE_LINK_MESSAGE.toLowerCase())) {
+    return 'This care context is already linked. Do not retry.';
+  }
+  if (code === 'ABDM-1207') {
+    return 'The name, gender or year of birth do not match the Aadhaar record. Enrol the patient again so the details are taken from the ABHA profile, then link.';
+  }
+  if (text.includes('unable to generate a token') || text.includes('hip is unable to process')) {
+    return 'ABDM could not reach this HIP. Check that the callback URL is current, click Register callback URL, then retry.';
+  }
+  if (text.includes('user not found')) {
+    return 'ABDM does not know this ABHA address. Check its spelling and the @sbx suffix.';
+  }
+  if (code === 'ABDM-9999') {
+    return 'ABDM could not process the request. Retry later. If it keeps failing, contact support with the request id.';
+  }
+  return null;
+}
 
 function addMonths(date, months) {
   const next = new Date(date);
@@ -49,6 +123,15 @@ export async function linkCareContextNow({
 }) {
   if (!env.abdmHipId) {
     return { linkStatus: 'NOT_LINKED', code: 'HIP_ID_MISSING' };
+  }
+  const problems = linkInputProblems(demographics);
+  if (problems.length) {
+    return {
+      linkStatus: 'NOT_LINKED',
+      code: 'LINK_INPUT_INVALID',
+      message: `Nothing was sent to ABDM: ${problems.join('; ')}.`,
+      hint: 'Correct the patient details, then use Link now.',
+    };
   }
   const token = await usableToken(patientId, env.abdmHipId, demographics.abhaAddress);
   if (!token) {
@@ -147,6 +230,7 @@ export async function completeLinkToken(transaction, body) {
     await repo.updateTransaction(transaction.id, {
       status: 'FAILED',
       lastErrorCode: body?.error?.code || 'LINK_TOKEN_FAILED',
+      safeMetadata: { ...(transaction.safeMetadata || {}), abdmMessage: upstreamMessage(body) },
     });
     const careContextId = transaction.safeMetadata?.careContextId;
     if (careContextId) {
@@ -190,6 +274,9 @@ export async function markLinkResult(transaction, body) {
   await repo.updateTransaction(transaction.id, {
     status: failed ? 'FAILED' : 'COMPLETED',
     lastErrorCode: failed ? (body.error.code || 'LINK_FAILED') : null,
+    ...(failed
+      ? { safeMetadata: { ...(transaction.safeMetadata || {}), abdmMessage: upstreamMessage(body) } }
+      : {}),
   });
   const careContextId = transaction.safeMetadata?.careContextId;
   if (careContextId) {

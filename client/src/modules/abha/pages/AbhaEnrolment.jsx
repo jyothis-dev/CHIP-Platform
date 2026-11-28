@@ -220,7 +220,29 @@ export default function AbhaEnrolmentPage() {
   );
 
   const addressRules = abhaAddressRules(abhaAddress);
+  const existingAddresses = (result?.profile?.phrAddress || []).filter(Boolean);
   const aadhaarInvalid = aadhaar.length > 0 && !/^\d{12}$/.test(aadhaar);
+
+  async function useExistingAddress(address) {
+    await run(async () => {
+      const data = await enrolment.createAddress.mutateAsync({
+        transactionId,
+        abhaAddress: address,
+        useExisting: true,
+      });
+      setResult((prev) => ({ ...prev, ...data }));
+      setAddressTaken(false);
+      try {
+        const cardData = await enrolment.loadCard.mutateAsync(transactionId);
+        setCard(cardData);
+        setCardNote('');
+      } catch (err) {
+        setCard(null);
+        setCardNote(err.message || 'Card image unavailable for this session.');
+      }
+      setStep(STEPS.DONE);
+    });
+  }
 
   async function run(action) {
     setError('');
@@ -625,6 +647,23 @@ export default function AbhaEnrolmentPage() {
           }}
         >
           <h2>ABHA address</h2>
+          {existingAddresses.length > 0 ? (
+            <div className="stack">
+              <p>This ABHA already has an address. Use it instead of creating a new one.</p>
+              <div className="row">
+                {existingAddresses.map((item) => (
+                  <Button
+                    key={item}
+                    type="button"
+                    disabled={enrolment.isBusy}
+                    onClick={() => useExistingAddress(item)}
+                  >
+                    Use {item}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          ) : null}
           {suggestions.length > 0 ? (
             <Field label="Suggestions">
               {({ id }) => (
@@ -671,15 +710,7 @@ export default function AbhaEnrolmentPage() {
               <div className="row">
                 <Button
                   type="button"
-                  onClick={() => run(async () => {
-                    const data = await enrolment.createAddress.mutateAsync({
-                      transactionId,
-                      abhaAddress,
-                      useExisting: true,
-                    });
-                    setResult((prev) => ({ ...prev, ...data }));
-                    setStep(STEPS.DONE);
-                  })}
+                  onClick={() => useExistingAddress(abhaAddress)}
                 >
                   Use this address
                 </Button>

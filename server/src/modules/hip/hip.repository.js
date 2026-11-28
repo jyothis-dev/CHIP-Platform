@@ -75,7 +75,7 @@ export function countNotFindable(patientId) {
 export function listCareContexts(patientId) {
   return prisma.careContext.findMany({
     where: { patientId },
-    include: { healthRecord: true, encounter: true },
+    include: { healthRecord: true, encounter: true, transaction: true },
     orderBy: { createdAt: 'desc' },
   });
 }
@@ -83,9 +83,16 @@ export function listCareContexts(patientId) {
 export function listCareContextPage(patientId, page = 1, pageSize = 20) {
   return prisma.careContext.findMany({
     where: { patientId },
-    include: { healthRecord: true, encounter: true },
+    include: { healthRecord: true, encounter: true, transaction: true },
     orderBy: { createdAt: 'desc' },
     ...pageSlice(page, pageSize),
+  });
+}
+
+export function findCareContextInFacility(id, facilityId) {
+  return prisma.careContext.findFirst({
+    where: { id, facilityId },
+    include: { healthRecord: true, transaction: true },
   });
 }
 
@@ -118,8 +125,11 @@ export function findPatientsByMobileHash(mobileHash) {
 }
 
 export function findPatientByAbhaAddress(abhaAddress) {
+  // Older rows hold the bare local part; newer ones the full address.
+  const at = String(abhaAddress || '').lastIndexOf('@');
+  const forms = at > 0 ? [abhaAddress, abhaAddress.slice(0, at)] : [abhaAddress];
   return prisma.patient.findFirst({
-    where: { abhaIdentity: { abhaAddress } },
+    where: { abhaIdentity: { abhaAddress: { in: forms } } },
     include: { abhaIdentity: true, careContexts: { include: { healthRecord: true } } },
   });
 }

@@ -86,6 +86,17 @@ export function profileFromEnrolment(body) {
   };
 }
 
+/**
+ * The M2 and M3 APIs want the full ABHA address, `name@sbx` or `name@abdm`
+ * (^[a-zA-Z0-9][a-zA-Z0-9_.]+[a-zA-Z0-9]@(abdm|sbx)$). Enrolment works with the bare local part, so a stored
+ * address can lack the suffix. Add the consent manager suffix only when there is none.
+ */
+export function fullAbhaAddress(value, suffix = 'sbx') {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  return raw.includes('@') ? raw : `${raw}@${suffix}`;
+}
+
 export function abhaAddressRules(value) {
   const raw = String(value || '').trim();
   const at = raw.lastIndexOf('@');
@@ -111,4 +122,47 @@ export function abhaAddressRules(value) {
     valid: Boolean(lengthOk && charsetOk && specialsOk),
     wire: local,
   };
+}
+
+function profileDate(profile) {
+  const raw = profile.dob || profile.dateOfBirth;
+  let year; let month; let day;
+  if (typeof raw === 'string') {
+    const iso = raw.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const dmy = raw.trim().match(/^(\d{2})-(\d{2})-(\d{4})$/);
+    if (iso) [, year, month, day] = iso;
+    else if (dmy) [, day, month, year] = dmy;
+  } else {
+    year = profile.yearOfBirth;
+    month = profile.monthOfBirth;
+    day = profile.dayOfBirth;
+  }
+  const [y, m, d] = [Number(year), Number(month), Number(day)];
+  if (!y || !m || !d) return null;
+  const date = new Date(Date.UTC(y, m - 1, d));
+  const sound = date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
+  return sound && y >= 1900 ? date : null;
+}
+
+const GENDER_WORDS = { MALE: 'M', FEMALE: 'F', OTHER: 'O', OTHERS: 'O' };
+
+/**
+ * The demographics ABDM holds for this ABHA (from the enrolment response). M2 link-token requests are compared
+ * with the Aadhaar record, so these values, not what staff typed, are what must be sent.
+ * A field ABDM did not return, or returned in a shape we cannot read, is left out.
+ */
+export function demographicsFromProfile(body) {
+  const profile = body?.ABHAProfile || {};
+  const name = [profile.firstName, profile.middleName, profile.lastName]
+    .filter((part) => typeof part === 'string' && part.trim())
+    .map((part) => part.trim())
+    .join(' ');
+  const rawGender = String(profile.gender || '').trim().toUpperCase();
+  const gender = ['M', 'F', 'O'].includes(rawGender) ? rawGender : (GENDER_WORDS[rawGender] || null);
+  const result = {};
+  if (name) result.name = name.slice(0, 120);
+  if (gender) result.gender = gender;
+  const dateOfBirth = profileDate(profile);
+  if (dateOfBirth) result.dateOfBirth = dateOfBirth;
+  return result;
 }

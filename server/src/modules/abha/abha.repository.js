@@ -104,3 +104,7 @@ export async function assertIdempotency({ key, userId, route, body }) {
   }
   return { hash, existing };
 }
+
+export async function updatePatientDemographics(patientId, data) {
+  return prisma.patient.update({ where: { id: patientId }, data });
+}

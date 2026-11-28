@@ -24,6 +24,16 @@ export async function createRecord(req, res) {
   res.status(201).json({ success: true, data });
 }
 
+export async function retryLink(req, res) {
+  const data = await records.retryLink({
+    careContextId: req.validated.params.id,
+    facilityId: req.auth.facilityId,
+    actorId: req.auth.userId,
+    correlationId: req.id,
+  });
+  res.status(200).json({ success: true, data });
+}
+
 export async function listRecords(req, res) {
   const data = await records.listRecords(
     req.validated.params.id,
@@ -61,6 +71,8 @@ export async function exchanges(req, res) {
     workflow: row.workflow,
     direction: row.direction,
     status: row.status,
+    errorCode: row.lastErrorCode ? row.lastErrorCode.replace(/:\s*$/, '').trim() : null,
+    errorMessage: row.safeMetadata?.abdmMessage || null,
     createdAt: row.createdAt,
     callbacks: (row.callbackEvents || []).map((event) => ({
       route: event.route,

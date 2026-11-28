@@ -24,6 +24,11 @@ export const patientParamSchema = z.object({
   query: z.object(pageQueryShape).optional().default({}),
 });
 
+export const careContextParamSchema = z.object({
+  ...empty,
+  params: z.object({ id: z.string().uuid() }),
+});
+
 export const exchangesQuerySchema = z.object({
   ...empty,
   query: z.object(pageQueryShape).optional().default({}),

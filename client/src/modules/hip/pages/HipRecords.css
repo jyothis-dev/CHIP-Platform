@@ -63,3 +63,8 @@
     grid-template-columns: 1fr;
   }
 }
+
+.hip-failure {
+  flex-basis: 100%;
+  color: var(--danger, #b42318);
+}

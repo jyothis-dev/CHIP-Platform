@@ -43,6 +43,9 @@ export default function HipRecordsPage() {
   const [saved, setSaved] = useState(null);
   const [bridgeMessage, setBridgeMessage] = useState('');
   const [registering, setRegistering] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [retryingId, setRetryingId] = useState('');
+  const [retryNote, setRetryNote] = useState(null);
 
   const records = useQuery({
     queryKey: ['hip-records', patientId, contextPage],
@@ -77,8 +80,11 @@ export default function HipRecordsPage() {
   }
 
   async function save() {
+    if (saving) return;
     setError('');
     setSaved(null);
+    setRetryNote(null);
+    setSaving(true);
     try {
       const data = await http.post(`/hip/patients/${patientId}/records`, form);
       setSaved(data);
@@ -86,6 +92,26 @@ export default function HipRecordsPage() {
       queryClient.invalidateQueries({ queryKey: ['hip-exchanges'] });
     } catch (err) {
       setError(err.message || 'The record was not saved');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function retry(id) {
+    if (retryingId) return;
+    setError('');
+    setSaved(null);
+    setRetryNote(null);
+    setRetryingId(id);
+    try {
+      const data = await http.post(`/hip/care-contexts/${id}/retry`);
+      setRetryNote(data);
+      queryClient.invalidateQueries({ queryKey: ['hip-records', patientId] });
+      queryClient.invalidateQueries({ queryKey: ['hip-exchanges'] });
+    } catch (err) {
+      setError(err.message || 'The link could not be retried');
+    } finally {
+      setRetryingId('');
     }
   }
 
@@ -179,17 +205,29 @@ export default function HipRecordsPage() {
         </Field>
       </div>
       <p className="row">
-        <Button type="button" variant="secondary" onClick={inspect}>Inspect bundle</Button>
-        <Button type="button" onClick={save} disabled={!patientId}>Save record</Button>
+        <Button type="button" variant="secondary" onClick={inspect} disabled={saving}>Inspect bundle</Button>
+        <Button type="button" onClick={save} disabled={!patientId || saving} aria-busy={saving}>
+          {saving ? 'Saving…' : 'Save record'}
+        </Button>
       </p>
       {preview ? (
         <pre className="hip-preview">{JSON.stringify(preview, null, 2)}</pre>
       ) : null}
       {saved ? (
-        <Alert tone="ok">
+        <Alert tone={saved.careContext.linkStatus === 'FAILED' ? 'danger' : 'ok'}>
           Saved. Link status {saved.careContext.linkStatus}
-          {saved.link.code ? ` (${saved.link.code})` : ''}.
+          {saved.link.code ? ` (${saved.link.code})` : ''}
+          {saved.link.message ? `: ${saved.link.message}` : ''}.
+          {saved.link.hint ? ` ${saved.link.hint}` : ''}
           {saved.link.callbackWarning ? ` ${saved.link.callbackWarning}` : ''}
+        </Alert>
+      ) : null}
+      {retryNote ? (
+        <Alert tone={retryNote.link.linkStatus === 'FAILED' ? 'danger' : 'ok'}>
+          Retry sent. Link status {retryNote.careContext.linkStatus}
+          {retryNote.link.code ? ` (${retryNote.link.code})` : ''}
+          {retryNote.link.message ? `: ${retryNote.link.message}` : ''}.
+          {retryNote.link.hint ? ` ${retryNote.link.hint}` : ''}
         </Alert>
       ) : null}
 
@@ -204,6 +242,24 @@ export default function HipRecordsPage() {
             <span>{row.validationStatus}</span>
             {row.sourceHash ? <span>hash {row.sourceHash.slice(0, 12)}</span> : null}
             {row.byteLength ? <span>{row.byteLength} bytes</span> : null}
+            {row.failure ? (
+              <span className="hip-failure">
+                {[row.failure.code, row.failure.message].filter(Boolean).join(': ') || 'No error recorded'}
+                {row.failure.hint ? ` ${row.failure.hint}` : ''}
+              </span>
+            ) : null}
+            {row.linkStatus === 'FAILED' || row.linkStatus === 'NOT_LINKED' ? (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => retry(row.id)}
+                disabled={Boolean(retryingId) || row.failure?.retryable === false}
+                title={row.failure?.retryable === false ? 'A retry cannot succeed. See the note above.' : undefined}
+                aria-busy={retryingId === row.id}
+              >
+                {retryingId === row.id ? 'Linking…' : (row.linkStatus === 'NOT_LINKED' ? 'Link now' : 'Retry link')}
+              </Button>
+            ) : null}
           </li>
         ))}
       </ul>
@@ -225,6 +281,11 @@ export default function HipRecordsPage() {
             <span>{row.status}</span>
             <span>request {row.requestId.slice(0, 8)}</span>
             <span>{row.callbacks.length} callback{row.callbacks.length === 1 ? '' : 's'}</span>
+            {row.errorCode ? (
+              <span className="hip-failure">
+                {[row.errorCode, row.errorMessage].filter(Boolean).join(': ')}
+              </span>
+            ) : null}
           </li>
         ))}
       </ul>

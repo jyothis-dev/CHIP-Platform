@@ -44,7 +44,11 @@ export async function callGateway({
     status: failed ? 'FAILED' : (waiting ? 'WAITING_FOR_CALLBACK' : 'ACCEPTED'),
     correlationId: correlationId || result.requestId,
     lastErrorCode: failed ? upstreamCode(result.body) : null,
-    safeMetadata: { httpStatus: result.status, path: contract.path },
+    safeMetadata: {
+      httpStatus: result.status,
+      path: contract.path,
+      ...(failed ? { abdmMessage: upstreamMessage(result.body) } : {}),
+    },
     evidenceLabel: workflow,
   });
   if (failed && throwOnFailure) {
@@ -52,7 +56,13 @@ export async function callGateway({
       502,
       upstreamCode(result.body) || 'ABDM_UPSTREAM',
       upstreamMessage(result.body) || 'ABDM refused the request',
-      { details: { abdmCode: upstreamCode(result.body), abdmMessage: upstreamMessage(result.body) } },
+      {
+        details: {
+          abdmCode: upstreamCode(result.body),
+          abdmMessage: upstreamMessage(result.body),
+          transactionId: transaction.id,
+        },
+      },
     );
   }
   return { result, transaction };

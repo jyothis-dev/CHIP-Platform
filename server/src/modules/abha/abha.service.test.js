@@ -60,6 +60,11 @@ jest.unstable_mockModule('./abha.repository.js', () => ({
     store.identities.set(id, row);
     return row;
   },
+  updatePatientDemographics: async (id, data) => {
+    const row = store.patients.get(id);
+    if (row) Object.assign(row, data);
+    return row;
+  },
   updatePatientMobileLast4: async (id, mobileLast4) => {
     const row = store.patients.get(id);
     if (row) row.mobileLast4 = mobileLast4;
@@ -361,6 +366,75 @@ describe('abha.service', () => {
     expect(result.profile.mobile).toBe('9999991234');
     expect(result.abhaNumber).toBe('12-3456-7890-1234');
     expect(mockAbdmRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it('sets the patient name, gender and birth date from the ABHA profile', async () => {
+    store.transactions.set(transactionId, {
+      id: transactionId,
+      workflow: 'abha.enrol.aadhaar_otp',
+      externalTxnId: 'ext-txn-1',
+      status: 'ACCEPTED',
+      correlationId: 'corr-1',
+      safeMetadata: { patientId },
+    });
+    mockAbdmRequest.mockResolvedValueOnce({
+      status: 200,
+      body: {
+        isNew: false,
+        healthIdNumber: '12-3456-7890-1234',
+        ABHAProfile: {
+          ABHANumber: '12-3456-7890-1234',
+          mobile: '******1234',
+          firstName: 'Jyothi',
+          lastName: 'Swarup',
+          gender: 'M',
+          dob: '14-01-1999',
+        },
+        tokens: { token: 'user-token' },
+        txnId: 'ext-txn-2',
+      },
+      requestId: 'req-profile',
+    });
+
+    const service = await load();
+    await service.verifyAadhaarOtp({
+      transactionId,
+      otp: '123456',
+      mobile: '9999991234',
+      consentAccepted: true,
+      actorId,
+      facilityId,
+    });
+
+    const patient = store.patients.get(patientId);
+    expect(patient.name).toBe('Jyothi Swarup');
+    expect(patient.gender).toBe('M');
+    expect(patient.dateOfBirth).toEqual(new Date('1999-01-14T00:00:00.000Z'));
+  });
+
+  it('accepts "use existing" only for an address on this ABHA', async () => {
+    store.transactions.set(transactionId, {
+      id: transactionId,
+      workflow: 'abha.enrol.aadhaar_otp',
+      externalTxnId: 'ext-txn-1',
+      status: 'ACCEPTED',
+      correlationId: 'corr-1',
+      safeMetadata: { patientId },
+    });
+    store.identities.set(patientId, { patientId, abhaNumberMasked: '**-****-****-1234' });
+    const service = await load();
+    const { putEnrolmentSession } = await import('./enrolmentSession.js');
+    putEnrolmentSession(transactionId, { existingAddresses: ['jyothiswarup@sbx'] });
+
+    await expect(service.createAddress({
+      transactionId, abhaAddress: 'someoneelse', useExisting: true, actorId, facilityId,
+    })).rejects.toMatchObject({ statusCode: 409, code: 'ABHA_ADDRESS_NOT_YOURS' });
+
+    const ok = await service.createAddress({
+      transactionId, abhaAddress: 'JyothiSwarup@sbx', useExisting: true, actorId, facilityId,
+    });
+    expect(ok.existing).toBe(true);
+    expect(store.identities.get(patientId).abhaAddress).toBe('JyothiSwarup@sbx');
   });
 
   it('rejects an Aadhaar OTP after 10 minutes', async () => {
